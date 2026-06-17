@@ -59,3 +59,34 @@ button.addEventListener('click', () => {
     window.location.href = '../Bilerdia/Home/home.html'
   }
 })
+
+document.getElementById('forgot-pw').addEventListener('click', () => {
+  const username = prompt('Enter your username:')
+  if (!username || !username.trim()) return
+
+  if (!localStorage.getItem(username.trim())) {
+    alert('Username not found.')
+    return
+  }
+
+  const userData = JSON.parse(localStorage.getItem('user_' + username.trim()) || '{}')
+  if (!userData.email) {
+    alert('No email provided on the account, please create a new account.')
+    return
+  }
+
+  const code = Math.random().toString(36).slice(2, 8).toUpperCase()
+  alert('A password reset code has been sent to ' + userData.email + '\n\n(Simulated — your code is: ' + code + ')')
+
+  const entered = prompt('Enter the reset code sent to your email:')
+  if (entered !== code) {
+    alert('Invalid code.')
+    return
+  }
+
+  const newPw = prompt('Enter your new password:')
+  if (newPw && newPw.trim()) {
+    localStorage.setItem(username.trim(), newPw.trim())
+    alert('Password reset successfully! You can now log in.')
+  }
+})

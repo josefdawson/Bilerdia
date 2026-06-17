@@ -562,3 +562,81 @@ body {
 
 .caction-btn:hover { background: rgb(80, 80, 80); }
 .caction-btn.active { background: rgb(50, 100, 150); color: white; }
+
+/* ─── Phone Portrait ─────────────────── */
+@media (max-width: 600px) {
+    body { overflow: auto; margin: 10px; }
+
+    #title { font-size: 20px; text-align: center; }
+
+    #create, #profile-btn {
+        position: static;
+        transform: none;
+        margin: 6px 4px;
+        font-size: 14px;
+        padding: 4px 12px;
+    }
+
+    #search {
+        position: static;
+        transform: none;
+        width: 90%;
+        margin: 8px auto;
+        display: block;
+        box-sizing: border-box;
+    }
+
+    #filters {
+        position: static;
+        justify-content: center;
+        margin: 6px 0;
+    }
+
+    #card {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        right: auto;
+        overflow-y: visible;
+    }
+
+    #profile-picture { display: none; }
+
+    #detail-modal {
+        flex-direction: column;
+    }
+
+    #detail-body {
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    #detail-content {
+        padding: 12px;
+    }
+
+    .detail-media img, .detail-media video {
+        max-height: 50vh;
+    }
+
+    #detail-comments {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #555;
+        max-height: 50vh;
+    }
+
+    #detail-header {
+        flex-wrap: wrap;
+        padding: 8px 12px;
+    }
+
+    #detail-title { font-size: 16px; width: 100%; order: -1; }
+
+    #profile-menu { width: 90%; max-height: 90vh; }
+
+    .post { margin: 10px; padding: 12px; }
+
+    .post-actions { flex-wrap: wrap; }
+}

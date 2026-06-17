@@ -71,6 +71,20 @@ body {
     color: darkblue;
 }
 
+#forgot-pw {
+    position: absolute;
+    right: 120px;
+    top: 300px;
+    font-size: 13px;
+    color: #555;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+#forgot-pw:hover {
+    color: #00f;
+}
+
 #title {
     font-weight: bold;
     color: rgba(67, 67, 67);
@@ -78,4 +92,56 @@ body {
 
 #titlec {
     transform: scale(0.4)
+}
+
+@media (max-width: 600px) {
+    #card {
+        width: 90%;
+        right: 5%;
+        top: 120px;
+        left: auto;
+        height: auto;
+        padding: 16px;
+        box-sizing: border-box;
+    }
+
+    #username, #password {
+        position: static;
+        transform: none;
+        width: 80%;
+        margin: 10px auto;
+        display: block;
+    }
+
+    #password { top: auto; }
+
+    #signup {
+        transform: none;
+        font-size: 22px;
+    }
+
+    #haveAccount {
+        position: static;
+        margin: 10px 0;
+        font-size: 14px;
+    }
+
+    #forgot-pw {
+        position: static;
+        margin: 8px 0;
+        display: block;
+    }
+
+    #register-log {
+        position: static;
+        transform: none;
+        margin-top: 20px;
+        padding: 8px 24px;
+        font-size: 16px;
+    }
+
+    #register-log:hover { transform: none; }
+
+    #title { font-size: 22px; }
+    #titlec { transform: none; font-size: 14px; }
 }
