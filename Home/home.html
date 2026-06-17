@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Bilerdia ❖ Home</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1 id="title">Bilerdia</h1>
+    <div id="video">
+        <!--<video controls>
+            <source src="video.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>-->
+    </div>
+    <div id="card"></div>
+    <button id="create">Create</button>
+    <button id="profile-btn">Profile</button>
+    <img id="profile-picture" src="Guest.png">
+    <input id="search" placeholder="Search Bar">
+    <div id="filters">
+        <button class="filter-btn active" data-sort="latest">Latest</button>
+        <button class="filter-btn" data-sort="oldest">Oldest</button>
+        <button class="filter-btn" data-sort="top">Top</button>
+    </div>
+
+    <div id="profile-menu" class="hidden">
+        <div id="menu-header">
+            <img id="menu-pfp" src="Guest.png">
+            <span id="menu-username"></span>
+            <button id="menu-close">&times;</button>
+        </div>
+        <div id="menu-body"></div>
+    </div>
+    <div id="menu-overlay" class="hidden"></div>
+
+    <div id="detail-overlay" class="hidden"></div>
+    <div id="detail-modal" class="hidden">
+        <div id="detail-header">
+            <button id="detail-back">← Back</button>
+            <span id="detail-title"></span>
+            <div id="detail-owner-actions"></div>
+        </div>
+        <div id="detail-body">
+            <div id="detail-content"></div>
+            <div id="detail-comments">
+                <h3>Comments</h3>
+                <div id="comment-input-row">
+                    <textarea id="comment-input" placeholder="Write a comment..." rows="2"></textarea>
+                    <button id="comment-submit">Post</button>
+                </div>
+                <div id="comment-filters">
+                    <button class="cfilter-btn active" data-csort="latest">Latest</button>
+                    <button class="cfilter-btn" data-csort="oldest">Oldest</button>
+                    <button class="cfilter-btn" data-csort="top">Top</button>
+                </div>
+                <div id="comments-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

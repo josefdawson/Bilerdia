@@ -1,0 +1,81 @@
+#card {
+    display: block;
+    position: absolute;
+    width: 400px;
+    height: 300px;
+    border: none;
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.518);
+    right: 550px;
+    top: 250px;
+    padding: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+#register-log {
+    cursor: pointer;
+    position: absolute;
+    top: 650px;
+    transform: scale(2);
+    background-color: green;
+    color: white; 
+    border: none;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: 0.2s transform;
+}
+
+#register-log:hover {
+    transform: scale(2.2)
+}
+
+body {
+    text-align: center;
+    font-family: "Arial", sans-serif;
+    color: white;
+}
+
+#signup {
+    color: rgb(67, 67, 67);
+    font-weight: bold;
+    transform: scale(1.80)
+}
+
+#username, #password {
+    transform: scale(1.3);
+    position: absolute;
+    right: 130px;
+    top: 130px;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid black;
+}
+
+#password {
+    top: 199px;
+}
+
+#haveAccount {
+    position: absolute;
+    padding: 10px;
+    color: black;
+    font-weight: bold;
+    right: 110px;
+    top: 250px;
+    cursor: pointer;
+}
+
+#haveAccount:hover {
+    text-decoration: underline;
+    color: darkblue;
+}
+
+#title {
+    font-weight: bold;
+    color: rgba(67, 67, 67);
+}
+
+#titlec {
+    transform: scale(0.4)
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bilerdia ❖ Create Post</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1 id="title">Create a Post</h1>
+    <div id="form-container">
+        <label>Title</label>
+        <input id="post-title" placeholder="Post title">
+
+        <label>Description</label>
+        <textarea id="post-description" placeholder="What's on your mind?" rows="5"></textarea>
+
+        <label>Tags (comma separated)</label>
+        <input id="post-tags" placeholder="e.g. travel, food, tech">
+
+        <label>Images / Videos</label>
+        <input type="file" id="media-input" accept="image/*,video/*" multiple>
+
+        <div id="preview"></div>
+
+        <div id="actions">
+            <button id="cancel-btn">Cancel</button>
+            <button id="submit-btn">Post</button>
+        </div>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+body {
+    font-family: "Arial", sans-serif;
+    background-color: rgb(47, 47, 47);
+    color: rgb(220, 220, 220);
+    margin: 0;
+    padding: 20px;
+}
+
+#title {
+    text-align: center;
+}
+
+#form-container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: rgb(60, 60, 60);
+    padding: 30px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#form-container label {
+    font-weight: bold;
+    margin-bottom: -8px;
+}
+
+#form-container input,
+#form-container textarea {
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #555;
+    background: rgb(40, 40, 40);
+    color: rgb(220, 220, 220);
+    font-size: 14px;
+}
+
+#form-container textarea {
+    resize: vertical;
+}
+
+#form-container input[type="file"] {
+    padding: 5px;
+}
+
+#preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+#actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+#actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: 0.2s;
+}
+
+#cancel-btn {
+    background: rgb(100, 100, 100);
+    color: white;
+}
+
+#cancel-btn:hover {
+    background: rgb(120, 120, 120);
+}
+
+#submit-btn {
+    background: rgb(0, 120, 200);
+    color: white;
+}
+
+#submit-btn:hover {
+    background: rgb(0, 140, 220);
+}
