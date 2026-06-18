@@ -4,8 +4,8 @@ const usernameInput = document.getElementById('username')
 const passwordInput = document.getElementById('password')
 const button = document.getElementById('register-log')
 
-if (sessionStorage.getItem('loggedInUser')) {
-  window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(sessionStorage.getItem('loggedInUser'))
+if (localStorage.getItem('loggedInUser')) {
+  window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(localStorage.getItem('loggedInUser'))
 }
 
 document.getElementById('haveAccount').addEventListener('click', () => {
@@ -58,7 +58,7 @@ button.addEventListener('click', async () => {
       }
       return
     }
-    sessionStorage.setItem('loggedInUser', username)
+    localStorage.setItem('loggedInUser', username)
     window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
   }
 })
@@ -82,8 +82,8 @@ function handleGoogleCredential(response) {
         profile_pic: picture || 'Guest.png'
       })
     }
-    sessionStorage.setItem('loggedInUser', username)
-    window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
+    localStorage.setItem('loggedInUser', username)
+    window.location.href = '../Home/home.html?user=' + encodeURIComponent(username)
   })
 }
 

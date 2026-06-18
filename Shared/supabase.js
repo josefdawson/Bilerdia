@@ -1,182 +1,184 @@
 const SUPABASE_URL = 'https://xhotvaezckemrjzozzal.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhob3R2YWV6Y2tlbXJqem96emFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3ODk1ODgsImV4cCI6MjA5NzM2NTU4OH0.kREPEfPMufXOPMT5UzqQcP0YJgHBRMRnwiDFpItWrTs'
+const REST_URL = SUPABASE_URL + '/rest/v1'
 
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+let loggedInUser = new URLSearchParams(window.location.search).get('user') || sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || ''
 
-let loggedInUser = new URLSearchParams(window.location.search).get('user') || ''
+async function _sup(method, table, { select, eq, order, limit, or: orFilter, single, body } = {}) {
+  const params = new URLSearchParams()
+  if (select) params.set('select', select)
+  if (order) params.set('order', order)
+  if (limit) params.set('limit', limit)
+  if (eq) { for (const [k, v] of Object.entries(eq)) params.append(k, 'eq.' + v) }
+  if (orFilter) params.set('or', orFilter)
+  const qs = params.toString()
+  const url = REST_URL + '/' + table + (qs ? '?' + qs : '')
+  const headers = { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }
+  if (method !== 'GET' && method !== 'DELETE') headers.Prefer = 'return=representation'
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+  if (!res.ok) { console.error('Supabase', method, table, res.status); return null }
+  if (method === 'DELETE') return true
+  const data = await res.json()
+  if (single && Array.isArray(data)) return data.length ? data[0] : null
+  return data
+}
 
 // ─── Users ────────────────────────────────
-async function supabaseGetAllUsers() {
-  const { data } = await _supabase.from('users').select('username').order('username')
-  return data ? data.map(u => u.username) : []
+function supabaseGetAllUsers() {
+  return _sup('GET', 'users', { select: 'username', order: 'username' }).then(d => d ? d.map(u => u.username) : [])
 }
 
-async function supabaseGetUser(username) {
-  const { data } = await _supabase.from('users').select('*').eq('username', username).maybeSingle()
-  return data || null
+function supabaseGetUser(username) {
+  return _sup('GET', 'users', { select: '*', eq: { username }, single: true })
 }
 
-async function supabaseUserExists(username) {
-  const { data } = await _supabase.from('users').select('id').eq('username', username).maybeSingle()
-  return !!data
+function supabaseUserExists(username) {
+  return _sup('GET', 'users', { select: 'id', eq: { username }, single: true }).then(d => !!d)
 }
 
 async function supabaseRegister(username, password) {
-  const { error } = await _supabase.from('users').insert({ username, password })
-  return error ? error.message : null
+  const res = await _sup('POST', 'users', { body: { username, password } })
+  return res ? null : 'Registration failed'
 }
 
-async function supabaseLogin(username, password) {
-  const { data } = await _supabase.from('users').select('*').eq('username', username).eq('password', password).maybeSingle()
-  return data || null
+function supabaseLogin(username, password) {
+  return _sup('GET', 'users', { select: '*', eq: { username, password }, single: true })
 }
 
 async function supabaseUpdateUser(username, updates) {
-  const { error } = await _supabase.from('users').update(updates).eq('username', username)
-  return !error
+  const res = await _sup('PATCH', 'users', { eq: { username }, body: updates })
+  return !!res
 }
 
 async function supabaseDeleteUser(username) {
-  await _supabase.from('users').delete().eq('username', username)
+  await _sup('DELETE', 'users', { eq: { username } })
 }
 
 // ─── Posts ────────────────────────────────
-async function supabaseGetPosts() {
-  const { data } = await _supabase.from('posts').select('*').order('created_at', { ascending: false })
-  return data || []
+function supabaseGetPosts() {
+  return _sup('GET', 'posts', { select: '*', order: 'created_at.desc' }).then(d => d || [])
 }
 
 async function supabaseCreatePost(post) {
-  const { data, error } = await _supabase.from('posts').insert(post).select()
-  return error ? null : (data ? data[0] : null)
+  const data = await _sup('POST', 'posts', { body: post })
+  return data && data[0] ? data[0] : null
 }
 
 async function supabaseUpdatePost(id, updates) {
-  const { error } = await _supabase.from('posts').update(updates).eq('id', id)
-  return !error
+  const res = await _sup('PATCH', 'posts', { eq: { id }, body: updates })
+  return !!res
 }
 
 async function supabaseDeletePost(id) {
-  const { error } = await _supabase.from('posts').delete().eq('id', id)
-  return !error
+  const res = await _sup('DELETE', 'posts', { eq: { id } })
+  return !!res
 }
 
 // ─── Comments ─────────────────────────────
-async function supabaseGetComments(postId) {
-  const { data } = await _supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true })
-  return data || []
+function supabaseGetComments(postId) {
+  return _sup('GET', 'comments', { select: '*', eq: { post_id: postId }, order: 'created_at.asc' }).then(d => d || [])
 }
 
 async function supabaseCreateComment(comment) {
-  const { error } = await _supabase.from('comments').insert(comment)
-  return !error
+  const data = await _sup('POST', 'comments', { body: comment })
+  return data && data[0] ? data[0] : null
 }
 
 async function supabaseDeleteComment(id) {
-  const { error } = await _supabase.from('comments').delete().eq('id', id)
-  return !error
+  const res = await _sup('DELETE', 'comments', { eq: { id } })
+  return !!res
 }
 
 async function supabaseUpdateComment(id, updates) {
-  const { error } = await _supabase.from('comments').update(updates).eq('id', id)
-  return !error
+  const res = await _sup('PATCH', 'comments', { eq: { id }, body: updates })
+  return !!res
 }
 
 // ─── Playlists ────────────────────────────
-async function supabaseGetPlaylists(owner) {
-  const { data } = await _supabase.from('playlists').select('*').eq('owner', owner).order('created_at', { ascending: false })
-  return data || []
+function supabaseGetPlaylists(owner) {
+  return _sup('GET', 'playlists', { select: '*', eq: { owner }, order: 'created_at.desc' }).then(d => d || [])
 }
 
 async function supabaseCreatePlaylist(playlist) {
-  const { data, error } = await _supabase.from('playlists').insert(playlist).select()
-  return error ? null : (data ? data[0] : null)
+  const data = await _sup('POST', 'playlists', { body: playlist })
+  return data && data[0] ? data[0] : null
 }
 
 async function supabaseUpdatePlaylist(id, updates) {
-  const { error } = await _supabase.from('playlists').update(updates).eq('id', id)
-  return !error
+  const res = await _sup('PATCH', 'playlists', { eq: { id }, body: updates })
+  return !!res
 }
 
 async function supabaseDeletePlaylist(id) {
-  const { error } = await _supabase.from('playlists').delete().eq('id', id)
-  return !error
+  const res = await _sup('DELETE', 'playlists', { eq: { id } })
+  return !!res
 }
 
 // ─── Friends ──────────────────────────────
 async function supabaseGetFriends(username) {
-  const { data } = await _supabase.from('friends').select('user1, user2')
-    .or('user1.eq.' + username + ',user2.eq.' + username)
-    .eq('status', 'accepted')
+  const data = await _sup('GET', 'friends', { select: 'user1,user2', eq: { status: 'accepted' }, or: 'user1.eq.' + username + ',user2.eq.' + username })
   if (!data) return []
   return data.map(r => r.user1 === username ? r.user2 : r.user1)
 }
 
 async function supabaseGetFriendRequests(username) {
-  const { data } = await _supabase.from('friends').select('user1')
-    .eq('user2', username).eq('status', 'pending')
-  return data ? data.map(r => r.user1) : []
+  const data = await _sup('GET', 'friends', { select: 'user1', eq: { user2: username, status: 'pending' } })
+  if (!data) return []
+  return data.map(r => r.user1)
 }
 
 async function supabaseGetSentRequests(username) {
-  const { data } = await _supabase.from('friends').select('user2')
-    .eq('user1', username).eq('status', 'pending')
-  return data ? data.map(r => r.user2) : []
+  const data = await _sup('GET', 'friends', { select: 'user2', eq: { user1: username, status: 'pending' } })
+  if (!data) return []
+  return data.map(r => r.user2)
 }
 
 async function supabaseSendFriendRequest(user1, user2) {
-  const { error } = await _supabase.from('friends').insert({ user1, user2, status: 'pending' })
-  return !error
+  const res = await _sup('POST', 'friends', { body: { user1, user2, status: 'pending' } })
+  return !!res
 }
 
 async function supabaseAcceptFriend(user1, user2) {
-  await _supabase.from('friends').update({ status: 'accepted' })
-    .eq('user1', user1).eq('user2', user2).eq('status', 'pending')
+  await _sup('PATCH', 'friends', { eq: { user1, user2, status: 'pending' }, body: { status: 'accepted' } })
 }
 
 async function supabaseDeclineFriend(user1, user2) {
-  await _supabase.from('friends').delete()
-    .eq('user1', user1).eq('user2', user2).eq('status', 'pending')
+  await _sup('DELETE', 'friends', { eq: { user1, user2, status: 'pending' } })
 }
 
 async function supabaseDeleteFriendRelationship(username, other) {
-  await _supabase.from('friends').delete()
-    .or('and(user1.eq.' + username + ',user2.eq.' + other + '),and(user1.eq.' + other + ',user2.eq.' + username + ')')
+  await _sup('DELETE', 'friends', { or: 'and(user1.eq.' + username + ',user2.eq.' + other + '),and(user1.eq.' + other + ',user2.eq.' + username + ')' })
 }
 
 // ─── Conversations ────────────────────────
-async function supabaseGetConversation(convId) {
-  const { data } = await _supabase.from('conversations').select('*').eq('id', convId).maybeSingle()
-  return data || null
+function supabaseGetConversation(convId) {
+  return _sup('GET', 'conversations', { select: '*', eq: { id: convId }, single: true })
 }
 
 async function supabaseSaveConversation(conv) {
   const exists = await supabaseGetConversation(conv.id)
   if (exists) {
-    await _supabase.from('conversations').update(conv).eq('id', conv.id)
+    await _sup('PATCH', 'conversations', { eq: { id: conv.id }, body: conv })
   } else {
-    await _supabase.from('conversations').insert(conv)
+    await _sup('POST', 'conversations', { body: conv })
   }
 }
 
-async function supabaseGetMessages(convId) {
-  const { data } = await _supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true })
-  return data || []
+function supabaseGetMessages(convId) {
+  return _sup('GET', 'messages', { select: '*', eq: { conversation_id: convId }, order: 'created_at.asc' }).then(d => d || [])
 }
 
 async function supabaseAddMessage(msg) {
-  const { error } = await _supabase.from('messages').insert(msg)
-  return !error
+  const data = await _sup('POST', 'messages', { body: msg })
+  return data && data[0] ? data[0] : null
 }
 
 async function supabaseMarkMessagesRead(convId, sender) {
-  await _supabase.from('messages').update({ read: true })
-    .eq('conversation_id', convId).eq('sender', sender).eq('read', false)
+  await _sup('PATCH', 'messages', { eq: { conversation_id: convId, sender, read: false }, body: { read: true } })
 }
 
-// Get all conversations a user is a member of
 async function supabaseGetUserConversations(username) {
-  const { data } = await _supabase.from('conversations').select('*')
+  const data = await _sup('GET', 'conversations', { select: '*' })
   if (!data) return []
-  return data.filter(c => (c.members || []).includes(username))
+  return data.filter(c => c.members && c.members.includes(username))
 }

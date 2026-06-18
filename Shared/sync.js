@@ -55,25 +55,52 @@ function userToSupabase(u) {
 
 // ─── Init: pull all data from Supabase into localStorage ───
 async function initSync() {
-  const [posts, registered] = await Promise.all([
+  const existingPosts = JSON.parse(localStorage.getItem('posts') || '[]')
+  const existingIds = new Set(existingPosts.map(p => p.id))
+
+  const [supaPosts, registered] = await Promise.all([
     supabaseGetPosts(),
     supabaseGetAllUsers()
   ])
+
+  // Upload any local-only posts to Supabase (data not yet synced)
+  for (const p of existingPosts) {
+    if (typeof p.id === 'number' && !supaPosts.find(s => s.id === p.id)) {
+      const result = await supabaseCreatePost(postToSupabase(p))
+      if (result) p.id = result.id
+    }
+  }
+
+  // Merge: Supabase posts win, but keep local-only posts
+  const supaLocal = supaPosts.map(postFromSupabase)
+  const mergedIds = new Set(supaLocal.map(p => p.id))
+  for (const p of existingPosts) {
+    if (!mergedIds.has(p.id)) supaLocal.push(p)
+  }
+  localStorage.setItem('posts', JSON.stringify(supaLocal))
+
   // Register all usernames
   localStorage.setItem('registeredUsers', JSON.stringify(registered))
-  // Convert and store posts
-  const localPosts = []
-  for (const p of posts) {
-    localPosts.push(postFromSupabase(p))
-    // Also sync comments for this post
-    const comments = await supabaseGetComments(p.id)
-    localStorage.setItem('comments_' + p.id, JSON.stringify(comments.map(commentFromSupabase)))
+
+  // Sync comments for Supabase posts
+  for (const p of supaPosts) {
+    if (!localStorage.getItem('comments_' + p.id)) {
+      const comments = await supabaseGetComments(p.id)
+      localStorage.setItem('comments_' + p.id, JSON.stringify(comments.map(commentFromSupabase)))
+    }
   }
-  localStorage.setItem('posts', JSON.stringify(localPosts))
-  // Pre-fetch all user profiles
+
+  // Fetch logged-in user data first
+  const myData = await supabaseGetUser(loggedInUser)
+  if (myData) localStorage.setItem('user_' + loggedInUser, JSON.stringify(userFromSupabase(myData)))
+
+  // Pre-fetch other user profiles (but don't block on this)
   for (const u of registered) {
-    const userData = await supabaseGetUser(u)
-    if (userData) localStorage.setItem('user_' + u, JSON.stringify(userFromSupabase(userData)))
+    if (u === loggedInUser) continue
+    if (!localStorage.getItem('user_' + u)) {
+      const userData = await supabaseGetUser(u)
+      if (userData) localStorage.setItem('user_' + u, JSON.stringify(userFromSupabase(userData)))
+    }
   }
 }
 
@@ -81,7 +108,6 @@ async function initSync() {
 async function refreshPostsFromSupabase() {
   const posts = await supabaseGetPosts()
   const localPosts = posts.map(postFromSupabase)
-  // Merge with existing to preserve any local-only state
   const existing = JSON.parse(localStorage.getItem('posts') || '[]')
   for (const lp of localPosts) {
     const found = existing.find(e => e.id === lp.id)
@@ -103,36 +129,24 @@ async function syncWritePosts(posts) {
   const existingIds = new Set(existing.map(p => p.id))
   for (const p of posts) {
     if (existingIds.has(p.id)) {
-      // Update existing
-      const sup = postToSupabase(p)
-      const { id, ...upd } = sup
-      await _supabase.from('posts').update(upd).eq('id', p.id)
+      const { id, ...upd } = postToSupabase(p)
+      await supabaseUpdatePost(p.id, upd)
     } else if (typeof p.id === 'number' && p.id > 1000000) {
-      // Local post - insert into Supabase
-      const { id, ...insertData } = postToSupabase(p)
-      const { data } = await _supabase.from('posts').insert(insertData).select()
-      if (data && data[0]) {
-        p.id = data[0].id
-      }
+      const result = await supabaseCreatePost(postToSupabase(p))
+      if (result) p.id = result.id
     }
   }
-  // Remove deleted posts from Supabase
   const localIds = new Set(posts.map(p => p.id))
   for (const eid of existingIds) {
-    if (!localIds.has(eid)) {
-      await _supabase.from('posts').delete().eq('id', eid)
-    }
+    if (!localIds.has(eid)) await supabaseDeletePost(eid)
   }
   localStorage.setItem('posts', JSON.stringify(posts))
 }
 
 async function syncCreatePost(post) {
   const posts = JSON.parse(localStorage.getItem('posts') || '[]')
-  const supabasePost = postToSupabase(post)
-  const { data } = await _supabase.from('posts').insert(supabasePost).select()
-  if (data && data[0]) {
-    post.id = data[0].id
-  }
+  const result = await supabaseCreatePost(postToSupabase(post))
+  if (result) post.id = result.id
   posts.unshift(post)
   localStorage.setItem('posts', JSON.stringify(posts))
 }
@@ -144,32 +158,29 @@ async function syncUpdatePost(postId, updates) {
     Object.assign(posts[idx], updates)
     localStorage.setItem('posts', JSON.stringify(posts))
   }
-  await _supabase.from('posts').update(postToSupabase(updates)).eq('id', postId)
+  await supabaseUpdatePost(postId, postToSupabase(updates))
 }
 
 async function syncDeletePost(postId) {
   const posts = JSON.parse(localStorage.getItem('posts') || '[]').filter(p => p.id !== postId)
   localStorage.setItem('posts', JSON.stringify(posts))
-  await _supabase.from('posts').delete().eq('id', postId)
+  await supabaseDeletePost(postId)
 }
 
 async function syncWriteComments(postId, comments) {
   localStorage.setItem('comments_' + postId, JSON.stringify(comments))
-  // For simplicity, replace all Supabase comments for this post
   const existing = await supabaseGetComments(postId)
   for (const c of existing) {
-    if (!comments.find(lc => lc.id === c.id)) {
-      await _supabase.from('comments').delete().eq('id', c.id)
-    }
+    if (!comments.find(lc => lc.id === c.id)) await supabaseDeleteComment(c.id)
   }
   for (const c of comments) {
     if (!c.id || c.id.toString().startsWith('local_')) {
       const supabaseC = commentToSupabase(c)
       supabaseC.post_id = postId
-      const { data } = await _supabase.from('comments').insert(supabaseC).select()
-      if (data && data[0]) c.id = data[0].id
+      const result = await supabaseCreateComment(supabaseC)
+      if (result) c.id = result.id
     } else {
-      await _supabase.from('comments').update(commentToSupabase(c)).eq('id', c.id)
+      await supabaseUpdateComment(c.id, commentToSupabase(c))
     }
   }
 }
@@ -179,14 +190,13 @@ async function syncAddComment(postId, comment) {
   const comments = JSON.parse(localStorage.getItem(key) || '[]')
   const supabaseC = commentToSupabase(comment)
   supabaseC.post_id = postId
-  const { data } = await _supabase.from('comments').insert(supabaseC).select()
-  if (data && data[0]) comment.id = data[0].id
+  const result = await supabaseCreateComment(supabaseC)
+  if (result) comment.id = result.id
   comments.push(comment)
   localStorage.setItem(key, JSON.stringify(comments))
 }
 
 async function syncUpdateComment(commentId, updates) {
-  // Update in localStorage
   for (const key of Object.keys(localStorage)) {
     if (key.startsWith('comments_')) {
       const comments = JSON.parse(localStorage.getItem(key) || '[]')
@@ -198,12 +208,11 @@ async function syncUpdateComment(commentId, updates) {
       }
     }
   }
-  // Update in Supabase
   const supabaseUpdates = {}
   if (updates.likes !== undefined) supabaseUpdates.likes = updates.likes
   if (updates.dislikes !== undefined) supabaseUpdates.dislikes = updates.dislikes
   if (updates.text !== undefined) supabaseUpdates.text = updates.text
-  await _supabase.from('comments').update(supabaseUpdates).eq('id', commentId)
+  await supabaseUpdateComment(commentId, supabaseUpdates)
 }
 
 async function syncDeleteComment(commentId) {
@@ -217,7 +226,7 @@ async function syncDeleteComment(commentId) {
       }
     }
   }
-  await _supabase.from('comments').delete().eq('id', commentId)
+  await supabaseDeleteComment(commentId)
 }
 
 async function syncWriteUser(username, data) {
@@ -229,16 +238,14 @@ async function syncWritePlaylists(owner, playlists) {
   localStorage.setItem('playlist_' + owner, JSON.stringify(playlists))
   const existing = await supabaseGetPlaylists(owner)
   for (const p of existing) {
-    if (!playlists.find(lp => lp.id === p.id)) {
-      await _supabase.from('playlists').delete().eq('id', p.id)
-    }
+    if (!playlists.find(lp => lp.id === p.id)) await supabaseDeletePlaylist(p.id)
   }
   for (const p of playlists) {
     if (!p.id || p.id.toString().startsWith('local_')) {
-      const { data } = await _supabase.from('playlists').insert({ name: p.name, owner, posts: p.posts || [] }).select()
-      if (data && data[0]) p.id = data[0].id
+      const result = await supabaseCreatePlaylist({ name: p.name, owner, posts: p.posts || [] })
+      if (result) p.id = result.id
     } else {
-      await _supabase.from('playlists').update({ name: p.name, posts: p.posts || [] }).eq('id', p.id)
+      await supabaseUpdatePlaylist(p.id, { name: p.name, posts: p.posts || [] })
     }
   }
 }
@@ -259,12 +266,10 @@ async function syncRefreshFriends(username) {
 // ─── Chat sync ────────────────────────────
 async function syncRefreshConversations() {
   const convs = await supabaseGetUserConversations(loggedInUser)
-  // Update convs_<username> list
   const convIds = convs.map(c => c.id)
   localStorage.setItem('convs_' + loggedInUser, JSON.stringify(convIds))
   for (const c of convs) {
     localStorage.setItem('conv_' + c.id, JSON.stringify(c))
-    // Migrate messages
     const msgs = await supabaseGetMessages(c.id)
     localStorage.setItem('msgs_' + c.id, JSON.stringify(msgs.map(m => ({
       id: m.id,
@@ -273,7 +278,6 @@ async function syncRefreshConversations() {
       read: m.read,
       createdAt: m.created_at
     }))))
-    // Also write old format for compatibility
     localStorage.setItem('chats_' + c.id, JSON.stringify(msgs.map(m => ({
       id: m.id,
       from: m.sender,
@@ -298,16 +302,15 @@ async function syncSendMessage(convId, text) {
     read: false,
     created_at: new Date().toISOString()
   }
-  const { data } = await _supabase.from('messages').insert(msg).select()
-  if (data && data[0]) {
+  const result = await supabaseAddMessage(msg)
+  if (result) {
     const msgs = syncGetMessages(convId)
-    msgs.push({ id: data[0].id, from: loggedInUser, text, read: false, createdAt: data[0].created_at })
+    msgs.push({ id: result.id, from: loggedInUser, text, read: false, createdAt: result.created_at })
     localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
-    // Also update old format
     const conv = JSON.parse(localStorage.getItem('conv_' + convId) || '{}')
     const otherUser = conv.members ? conv.members.find(m => m !== loggedInUser) : ''
     const oldChats = JSON.parse(localStorage.getItem('chats_' + convId) || '[]')
-    oldChats.push({ id: data[0].id, from: loggedInUser, to: otherUser, text, read: false, createdAt: data[0].created_at })
+    oldChats.push({ id: result.id, from: loggedInUser, to: otherUser, text, read: false, createdAt: result.created_at })
     localStorage.setItem('chats_' + convId, JSON.stringify(oldChats))
   }
 }
@@ -330,8 +333,6 @@ async function syncSaveConversation(conv) {
 }
 
 async function syncAddConvForUser(username, convId) {
-  // Supabase handles this via the conversation's members list
-  // Just update local
   const convs = JSON.parse(localStorage.getItem('convs_' + username) || '[]')
   if (!convs.includes(convId)) {
     convs.push(convId)
@@ -345,7 +346,6 @@ async function syncRemoveConvForUser(username, convId) {
 }
 
 // ─── Friend write helpers ────────────
-// These write to localStorage for sync reads, and to Supabase for cross-device
 
 function syncWriteFriends(user, list) {
   localStorage.setItem('friends_' + user, JSON.stringify(list))
@@ -360,36 +360,33 @@ function syncWriteSentRequests(user, list) {
 }
 
 async function syncAddFriendAsAccepted(user1, user2) {
-  // Check if relationship exists in Supabase
-  const { data: existing } = await _supabase.from('friends').select('*')
-    .or('and(user1.eq.' + user1 + ',user2.eq.' + user2 + '),and(user1.eq.' + user2 + ',user2.eq.' + user1 + ')')
-    .maybeSingle()
+  const existing = await _sup('GET', 'friends', {
+    select: '*',
+    or: 'and(user1.eq.' + user1 + ',user2.eq.' + user2 + '),and(user1.eq.' + user2 + ',user2.eq.' + user1 + ')',
+    single: true
+  })
   if (existing) {
-    await _supabase.from('friends').update({ status: 'accepted' }).eq('id', existing.id)
+    await _sup('PATCH', 'friends', { eq: { id: existing.id }, body: { status: 'accepted' } })
   } else {
-    await _supabase.from('friends').insert({ user1, user2, status: 'accepted' })
+    await _sup('POST', 'friends', { body: { user1, user2, status: 'accepted' } })
   }
 }
 
 async function syncDeleteFriendRequest(user1, user2) {
-  await _supabase.from('friends').delete()
-    .eq('user1', user1).eq('user2', user2).eq('status', 'pending')
+  await _sup('DELETE', 'friends', { eq: { user1, user2, status: 'pending' } })
 }
 
 async function syncDeleteFriendRelationship(username, other) {
-  await _supabase.from('friends').delete()
-    .or('and(user1.eq.' + username + ',user2.eq.' + other + '),and(user1.eq.' + other + ',user2.eq.' + username + ')')
+  await _sup('DELETE', 'friends', { or: 'and(user1.eq.' + username + ',user2.eq.' + other + '),and(user1.eq.' + other + ',user2.eq.' + username + ')' })
 }
 
 async function syncSendFriendRequest(user1, user2) {
-  await _supabase.from('friends').insert({ user1, user2, status: 'pending' })
+  await _sup('POST', 'friends', { body: { user1, user2, status: 'pending' } })
 }
 
 // ─── Chat write helpers ──────────────
 async function syncSaveMessages(convId, msgs) {
   localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
-  // For full sync, we'd need to diff. For now, just trust local writes
-  // New messages are already sent via syncSendMessage
 }
 
 async function syncGetConversation(convId) {

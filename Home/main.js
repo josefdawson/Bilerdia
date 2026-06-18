@@ -1,4 +1,3 @@
-const loggedInUser = new URLSearchParams(window.location.search).get('user') || sessionStorage.getItem('loggedInUser') || ''
 if (!loggedInUser) {
   window.location.href = '../index.html'
 }
@@ -74,16 +73,12 @@ function saveSentRequests(user, list) {
   syncWriteSentRequests(user, list)
 }
 
-// Profile picture
+// Profile picture (loaded after initSync populates data)
 const profileImg = document.getElementById('profile-picture')
-const userData = getUserData()
-if (userData.profilePic) {
-  profileImg.src = userData.profilePic
-}
 
 // Create button
 document.getElementById('create').addEventListener('click', () => {
-  window.location.href = '../CreatePost/create.html'
+  window.location.href = '../CreatePost/create.html?user=' + encodeURIComponent(loggedInUser)
 })
 
 // Profile button
@@ -842,7 +837,18 @@ function createPostElement(post) {
       if (confirm('Delete this post?')) {
         const all = getPosts().filter(p => p.id !== post.id)
         savePosts(all)
-        renderPosts()
+;(async function() {
+  await initSync()
+  await syncRefreshConversations()
+  // Load profile picture after data is synced
+  const data = getUserData()
+  if (data.profilePic) profileImg.src = data.profilePic
+  renderPosts()
+  setInterval(async () => {
+    await refreshPostsFromSupabase()
+    renderPosts()
+  }, 10000)
+})()
       }
     })
     header.appendChild(delBtn)

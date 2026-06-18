@@ -1,4 +1,3 @@
-const loggedInUser = localStorage.getItem('loggedInUser')
 if (!loggedInUser) {
   window.location.href = '../index.html'
 }
@@ -7,7 +6,7 @@ const userData = JSON.parse(localStorage.getItem('user_' + loggedInUser) || '{}'
 const profilePic = userData.profilePic || ''
 
 document.getElementById('cancel-btn').addEventListener('click', () => {
-  window.location.href = '../Home/home.html'
+  window.location.href = '../Home/home.html?user=' + encodeURIComponent(loggedInUser)
 })
 
 document.getElementById('media-input').addEventListener('change', (e) => {
@@ -51,22 +50,33 @@ document.getElementById('submit-btn').addEventListener('click', () => {
     }))
   }
 
-  Promise.all(mediaPromises).then((media) => {
-    const posts = JSON.parse(localStorage.getItem('posts') || '[]')
-    posts.unshift({
+  Promise.all(mediaPromises).then(async (media) => {
+    const images = media.filter(m => m.type === 'image').map(m => m.data)
+    const videos = media.filter(m => m.type === 'video').map(m => m.data)
+    const post = {
       id: Date.now(),
       accountName: loggedInUser,
       profilePic: profilePic,
       title,
       description,
       tags,
-      media,
+      images,
+      videos,
       likes: [],
       dislikes: [],
       createdAt: new Date().toISOString()
-    })
+    }
+    const posts = JSON.parse(localStorage.getItem('posts') || '[]')
+    posts.unshift(post)
     localStorage.setItem('posts', JSON.stringify(posts))
 
-    window.location.href = '../Home/home.html'
+    // Also save to Supabase
+    const result = await supabaseCreatePost(postToSupabase(post))
+    if (result) {
+      post.id = result.id
+      localStorage.setItem('posts', JSON.stringify(posts))
+    }
+
+    window.location.href = '../Home/home.html?user=' + encodeURIComponent(loggedInUser)
   })
 })
