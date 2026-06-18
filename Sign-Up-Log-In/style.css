@@ -71,18 +71,10 @@ body {
     color: darkblue;
 }
 
-#forgot-pw {
+#google-btn {
     position: absolute;
-    right: 120px;
-    top: 300px;
-    font-size: 13px;
-    color: #555;
-    cursor: pointer;
-    text-decoration: underline;
-}
-
-#forgot-pw:hover {
-    color: #00f;
+    right: 100px;
+    top: 310px;
 }
 
 #title {
@@ -126,10 +118,11 @@ body {
         font-size: 14px;
     }
 
-    #forgot-pw {
+    #google-btn {
         position: static;
-        margin: 8px 0;
-        display: block;
+        margin: 10px auto;
+        display: flex;
+        justify-content: center;
     }
 
     #register-log {
