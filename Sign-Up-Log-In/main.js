@@ -4,8 +4,8 @@ const usernameInput = document.getElementById('username')
 const passwordInput = document.getElementById('password')
 const button = document.getElementById('register-log')
 
-if (localStorage.getItem('loggedInUser')) {
-  window.location.href = '../Bilerdia/Home/home.html'
+if (sessionStorage.getItem('loggedInUser')) {
+  window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(sessionStorage.getItem('loggedInUser'))
 }
 
 document.getElementById('haveAccount').addEventListener('click', () => {
@@ -22,7 +22,7 @@ document.getElementById('haveAccount').addEventListener('click', () => {
   }
 })
 
-button.addEventListener('click', () => {
+button.addEventListener('click', async () => {
   const username = usernameInput.value.trim()
   const password = passwordInput.value.trim()
 
@@ -32,57 +32,59 @@ button.addEventListener('click', () => {
   }
 
   if (isOnSignUp) {
-    if (localStorage.getItem(username)) {
+    const exists = await supabaseUserExists(username)
+    if (exists) {
       alert('Username already exists. Please log in instead.')
       return
     }
-    localStorage.setItem(username, password)
-    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
-    if (!users.includes(username)) { users.push(username) }
-    localStorage.setItem('registeredUsers', JSON.stringify(users))
+    const err = await supabaseRegister(username, password)
+    if (err) {
+      alert('Registration failed: ' + err)
+      return
+    }
     alert('Account created successfully! You can now log in.')
     signupElements[0].textContent = "Don't have an account? Sign Up";
     signupElements[1].textContent = "Log In";
     button.textContent = "Log In";
     isOnSignUp = false
   } else {
-    const storedPassword = localStorage.getItem(username)
-    if (!storedPassword) {
-      alert('Username not found. Please sign up first.')
+    const user = await supabaseLogin(username, password)
+    if (!user) {
+      const exists = await supabaseUserExists(username)
+      if (!exists) {
+        alert('Username not found. Please sign up first.')
+      } else {
+        alert('Incorrect password.')
+      }
       return
     }
-    if (storedPassword !== password) {
-      alert('Incorrect password.')
-      return
-    }
-    localStorage.setItem('loggedInUser', username)
-    window.location.href = '../Bilerdia/Home/home.html'
+    sessionStorage.setItem('loggedInUser', username)
+    window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
   }
 })
 
-// Google Sign-In
 function handleGoogleCredential(response) {
   const payload = JSON.parse(atob(response.credential.split('.')[1]))
   const email = payload.email
   const name = payload.name || email.split('@')[0]
   const picture = payload.picture
-
   const username = email.split('@')[0] + '_google'
 
-  if (!localStorage.getItem(username)) {
-    localStorage.setItem(username, 'google_oauth')
-    localStorage.setItem('user_' + username, JSON.stringify({
-      email: email,
-      profilePic: picture || '',
-      googleName: name
-    }))
-    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
-    if (!users.includes(username)) { users.push(username) }
-    localStorage.setItem('registeredUsers', JSON.stringify(users))
-  }
-
-  localStorage.setItem('loggedInUser', username)
-  window.location.href = '../Bilerdia/Home/home.html'
+  supabaseUserExists(username).then(async (exists) => {
+    if (!exists) {
+      const err = await supabaseRegister(username, 'google_oauth')
+      if (err) {
+        alert('Google sign-in failed: ' + err)
+        return
+      }
+      await supabaseUpdateUser(username, {
+        email: email,
+        profile_pic: picture || 'Guest.png'
+      })
+    }
+    sessionStorage.setItem('loggedInUser', username)
+    window.location.href = '../Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
+  })
 }
 
 if (typeof GOOGLE_CLIENT_ID !== 'undefined' && GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {

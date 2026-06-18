@@ -1,4 +1,4 @@
-const loggedInUser = localStorage.getItem('loggedInUser')
+const loggedInUser = new URLSearchParams(window.location.search).get('user') || sessionStorage.getItem('loggedInUser') || ''
 if (!loggedInUser) {
   window.location.href = '../index.html'
 }
@@ -9,6 +9,7 @@ function getUserData() {
 
 function saveUserData(data) {
   localStorage.setItem('user_' + loggedInUser, JSON.stringify(data))
+  syncWriteUser(loggedInUser, data)
 }
 
 function getPosts() {
@@ -24,6 +25,7 @@ function getPosts() {
 
 function savePosts(posts) {
   localStorage.setItem('posts', JSON.stringify(posts))
+  syncWritePosts(posts)
 }
 
 function getPlaylists() {
@@ -32,6 +34,7 @@ function getPlaylists() {
 
 function savePlaylists(playlists) {
   localStorage.setItem('playlists_' + loggedInUser, JSON.stringify(playlists))
+  syncWritePlaylists(loggedInUser, playlists)
 }
 
 function getComments(postId) {
@@ -45,6 +48,7 @@ function getComments(postId) {
 
 function saveComments(postId, comments) {
   localStorage.setItem('comments_' + postId, JSON.stringify(comments))
+  syncWriteComments(postId, comments)
 }
 
 // ─── Friend helpers ─────────────────────
@@ -53,18 +57,21 @@ function getFriends(user) {
 }
 function saveFriends(user, list) {
   localStorage.setItem('friends_' + user, JSON.stringify(list))
+  syncWriteFriends(user, list)
 }
 function getFriendRequests(user) {
   return JSON.parse(localStorage.getItem('fr_requests_' + user) || '[]')
 }
 function saveFriendRequests(user, list) {
   localStorage.setItem('fr_requests_' + user, JSON.stringify(list))
+  syncWriteFriendRequests(user, list)
 }
 function getSentRequests(user) {
   return JSON.parse(localStorage.getItem('fr_sent_' + user) || '[]')
 }
 function saveSentRequests(user, list) {
   localStorage.setItem('fr_sent_' + user, JSON.stringify(list))
+  syncWriteSentRequests(user, list)
 }
 
 // Profile picture
@@ -148,10 +155,9 @@ function buildMenuBody() {
     const newName = prompt('Enter new username:')
     if (!newName || !newName.trim()) return
     const name = newName.trim()
-    if (localStorage.getItem(name)) {
-      alert('Username already taken.')
-      return
-    }
+    supabaseUserExists(name).then(exists => {
+      if (exists) { alert('Username already taken.'); return }
+    })
     const oldPass = localStorage.getItem(loggedInUser)
     localStorage.setItem(name, oldPass)
     localStorage.removeItem(loggedInUser)
@@ -274,7 +280,7 @@ function buildMenuBody() {
           const accept = document.createElement('button')
           accept.textContent = 'Accept'
           accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-          accept.addEventListener('click', () => {
+          accept.addEventListener('click', async () => {
             const myFriends = getFriends(loggedInUser)
             myFriends.push(u)
             saveFriends(loggedInUser, myFriends)
@@ -285,17 +291,19 @@ function buildMenuBody() {
             saveFriendRequests(loggedInUser, reqs)
             const s = getSentRequests(u).filter(x => x !== loggedInUser)
             saveSentRequests(u, s)
+            await syncAddFriendAsAccepted(loggedInUser, u)
             closeMenu()
           })
           btnRow.appendChild(accept)
           const decline = document.createElement('button')
           decline.textContent = 'Decline'
           decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-          decline.addEventListener('click', () => {
+          decline.addEventListener('click', async () => {
             const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
             saveFriendRequests(loggedInUser, reqs)
             const s = getSentRequests(u).filter(x => x !== loggedInUser)
             saveSentRequests(u, s)
+            await syncDeleteFriendRequest(u, loggedInUser)
             closeMenu()
           })
           btnRow.appendChild(decline)
@@ -308,13 +316,14 @@ function buildMenuBody() {
           const addBtn = document.createElement('button')
           addBtn.textContent = 'Add Friend'
           addBtn.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-          addBtn.addEventListener('click', () => {
+          addBtn.addEventListener('click', async () => {
             const theirReqs = getFriendRequests(u)
             theirReqs.push(loggedInUser)
             saveFriendRequests(u, theirReqs)
             const mySent = getSentRequests(loggedInUser)
             mySent.push(u)
             saveSentRequests(loggedInUser, mySent)
+            await syncSendFriendRequest(loggedInUser, u)
             closeMenu()
           })
           btnRow.appendChild(addBtn)
@@ -322,10 +331,11 @@ function buildMenuBody() {
         const msgBtn = document.createElement('button')
         msgBtn.textContent = 'Message'
         msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-        msgBtn.addEventListener('click', () => {
+        msgBtn.addEventListener('click', async () => {
           clearChatPoll()
           card.innerHTML = ''
-          openChat(u)
+          const convId = await getOrCreateDM(u)
+          await openChat(convId)
         })
         btnRow.appendChild(msgBtn)
         el.appendChild(btnRow)
@@ -365,7 +375,7 @@ function buildMenuBody() {
         const accept = document.createElement('button')
         accept.textContent = 'Accept'
         accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-        accept.addEventListener('click', () => {
+        accept.addEventListener('click', async () => {
           const myFriends = getFriends(loggedInUser)
           myFriends.push(r)
           saveFriends(loggedInUser, myFriends)
@@ -376,6 +386,7 @@ function buildMenuBody() {
           saveFriendRequests(loggedInUser, reqs)
           const sent = getSentRequests(r).filter(x => x !== loggedInUser)
           saveSentRequests(r, sent)
+          await syncAddFriendAsAccepted(loggedInUser, r)
           closeMenu()
           alert('You are now friends with ' + r + '!')
         })
@@ -383,11 +394,12 @@ function buildMenuBody() {
         const decline = document.createElement('button')
         decline.textContent = 'Decline'
         decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-        decline.addEventListener('click', () => {
+        decline.addEventListener('click', async () => {
           const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
           saveFriendRequests(loggedInUser, reqs)
           const sent = getSentRequests(r).filter(x => x !== loggedInUser)
           saveSentRequests(r, sent)
+          await syncDeleteFriendRequest(r, loggedInUser)
           closeMenu()
         })
         el.appendChild(decline)
@@ -413,10 +425,11 @@ function buildMenuBody() {
       const msgBtn = document.createElement('button')
       msgBtn.textContent = 'Message'
       msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;margin-left:auto;'
-      msgBtn.addEventListener('click', () => {
+      msgBtn.addEventListener('click', async () => {
         clearChatPoll()
         card.innerHTML = ''
-        openChat(f)
+        const convId = await getOrCreateDM(f)
+        await openChat(convId)
       })
       el.appendChild(msgBtn)
       card.appendChild(el)
@@ -452,7 +465,15 @@ function buildMenuBody() {
           const p = getPlaylists()
           delete p[name]
           savePlaylists(p)
-          renderPosts()
+;(async function() {
+  await initSync()
+  await syncRefreshConversations()
+  renderPosts()
+  setInterval(async () => {
+    await refreshPostsFromSupabase()
+    renderPosts()
+  }, 10000)
+})()
         }
       })
       header.appendChild(delPl)
@@ -1031,50 +1052,26 @@ function removeConvForUser(username, convId) {
   localStorage.setItem('convs_' + username, JSON.stringify(list))
 }
 
-function getConversation(convId) {
-  let conv = JSON.parse(localStorage.getItem('conv_' + convId))
-  if (!conv) {
-    const parts = convId.split('_')
-    if (parts.length === 2 && userExists(parts[0]) && userExists(parts[1])) {
-      conv = {
-        id: convId,
-        type: 'dm',
-        name: null,
-        nicknames: {},
-        background: null,
-        style: 'default',
-        members: [parts[0], parts[1]],
-        createdAt: Date.now()
-      }
-      saveConversation(convId, conv)
-      addConvForUser(parts[0], convId)
-      addConvForUser(parts[1], convId)
-    }
-  }
-  return conv
+async function getConversation(convId) {
+  return await syncGetOrCreateConversation(convId, null)
 }
 
 function saveConversation(convId, data) {
   localStorage.setItem('conv_' + convId, JSON.stringify(data))
+  supabaseSaveConversation(data)
 }
 
 function getMessages(convId) {
-  let msgs = JSON.parse(localStorage.getItem('msgs_' + convId))
-  if (!msgs) msgs = JSON.parse(localStorage.getItem('chats_' + convId) || '[]')
-  return msgs
+  return syncGetMessages(convId)
 }
 
 function saveMessages(convId, msgs) {
   localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
+  syncSaveMessages(convId, msgs)
 }
 
 function migrateChat(convId) {
-  const oldKey = 'chats_' + convId
-  const newKey = 'msgs_' + convId
-  if (localStorage.getItem(oldKey) && !localStorage.getItem(newKey)) {
-    localStorage.setItem(newKey, localStorage.getItem(oldKey))
-    localStorage.removeItem(oldKey)
-  }
+  syncMigrateChat(convId)
 }
 
 function getConvDisplayName(conv) {
@@ -1090,9 +1087,9 @@ function getConvMemberName(conv, username) {
   return (conv.nicknames && conv.nicknames[username]) || username
 }
 
-function getOrCreateDM(otherUser) {
+async function getOrCreateDM(otherUser) {
   const convId = getConversationId(loggedInUser, otherUser)
-  let conv = getConversation(convId)
+  let conv = await getConversation(convId)
   if (!conv) {
     conv = {
       id: convId,
@@ -1111,11 +1108,11 @@ function getOrCreateDM(otherUser) {
   return convId
 }
 
-function getAllConversations() {
+async function getAllConversations() {
   const convIds = getConversationsForUser(loggedInUser)
   const convs = []
   for (const id of convIds) {
-    const conv = getConversation(id)
+    const conv = await getConversation(id)
     if (!conv) continue
     migrateChat(id)
     const msgs = getMessages(id)
@@ -1134,7 +1131,7 @@ function getAllConversations() {
 }
 
 // ─── Chat List ─────────────────────────
-function renderChatList() {
+async function renderChatList() {
   const card = document.getElementById('card')
   card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
   document.getElementById('back-btn').addEventListener('click', () => {
@@ -1145,10 +1142,10 @@ function renderChatList() {
   const createGroupBtn = document.createElement('button')
   createGroupBtn.textContent = '+ New Group'
   createGroupBtn.style.cssText = 'margin:10px;padding:6px 14px;background:rgb(0,140,60);color:white;border:none;border-radius:5px;cursor:pointer;font-size:13px;float:right;'
-  createGroupBtn.addEventListener('click', createGroupChat)
+  createGroupBtn.addEventListener('click', async () => { clearChatPoll(); await createGroupChat() })
   document.getElementById('back-btn').after(createGroupBtn)
 
-  const allConvs = getAllConversations()
+  const allConvs = await getAllConversations()
 
   const h3 = document.createElement('h3')
   h3.style.cssText = 'padding:0 16px;color:white;clear:both;'
@@ -1202,9 +1199,9 @@ function renderChatList() {
       el.appendChild(prev)
     }
 
-    el.addEventListener('click', () => {
+    el.addEventListener('click', async () => {
       clearChatPoll()
-      openChat(conv.id)
+      await openChat(conv.id)
     })
     card.appendChild(el)
   }
@@ -1218,27 +1215,22 @@ function clearChatPoll() {
 }
 
 // ─── Open Chat ─────────────────────────
-function openChat(convId) {
-  const conv = getConversation(convId)
+async function openChat(convId) {
+  const conv = await getConversation(convId)
   if (!conv) { renderChatList(); return }
 
   const card = document.getElementById('card')
   migrateChat(convId)
 
-  const allMsgs = getMessages(convId)
-  let changed = false
-  for (const m of allMsgs) {
-    if (m.from !== loggedInUser && !m.read) { m.read = true; changed = true }
-  }
-  if (changed) saveMessages(convId, allMsgs)
+  syncMarkMessagesRead(convId)
 
   card.innerHTML = '<button id="chat-back" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back to chats</button>'
   card.classList.add('chat-card')
 
-  document.getElementById('chat-back').addEventListener('click', () => {
+  document.getElementById('chat-back').addEventListener('click', async () => {
     card.classList.remove('chat-card')
     clearChatPoll()
-    renderChatList()
+    await renderChatList()
   })
 
   const header = document.createElement('div')
@@ -1252,7 +1244,7 @@ function openChat(convId) {
   const settingsBtn = document.createElement('button')
   settingsBtn.textContent = '⚙'
   settingsBtn.style.cssText = 'background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;padding:0 4px;'
-  settingsBtn.addEventListener('click', () => openChatSettings(convId))
+  settingsBtn.addEventListener('click', async () => await openChatSettings(convId))
   header.appendChild(settingsBtn)
 
   card.appendChild(header)
@@ -1290,19 +1282,11 @@ function openChat(convId) {
 
   card.appendChild(inputRow)
 
-  function sendMessage() {
+  async function sendMessage() {
     const text = input.value.trim()
     if (!text) return
     input.value = ''
-    const all = getMessages(convId)
-    all.push({
-      id: Date.now(),
-      from: loggedInUser,
-      text,
-      read: false,
-      createdAt: new Date().toISOString()
-    })
-    saveMessages(convId, all)
+    await syncSendMessage(convId, text)
     renderMessagesInChat(convId)
   }
 
@@ -1314,25 +1298,21 @@ function openChat(convId) {
   renderMessagesInChat(convId)
 
   clearChatPoll()
-  window._chatPollInterval = setInterval(() => {
-    renderMessagesInChat(convId, true)
+  window._chatPollInterval = setInterval(async () => {
+    await renderMessagesInChat(convId, true)
   }, 3000)
 }
 
-function renderMessagesInChat(convId, isPolling) {
+async function renderMessagesInChat(convId, isPolling) {
   const messagesDiv = document.getElementById('chat-messages')
   if (!messagesDiv) return
 
-  const conv = getConversation(convId)
+  const conv = await getConversation(convId)
   if (!conv) return
 
   const all = getMessages(convId)
 
-  let changed = false
-  for (const m of all) {
-    if (m.from !== loggedInUser && !m.read) { m.read = true; changed = true }
-  }
-  if (changed) saveMessages(convId, all)
+  syncMarkMessagesRead(convId)
 
   if (!isPolling) {
     messagesDiv.innerHTML = ''
@@ -1380,8 +1360,8 @@ function appendMessageEl(container, m, conv) {
 }
 
 // ─── Chat Settings ────────────────────
-function openChatSettings(convId) {
-  const conv = getConversation(convId)
+async function openChatSettings(convId) {
+  const conv = await getConversation(convId)
   if (!conv) return
 
   const overlay = document.getElementById('detail-overlay')
@@ -1622,7 +1602,7 @@ function createGroupChat() {
   const createBtn = document.createElement('button')
   createBtn.textContent = 'Create Group'
   createBtn.style.cssText = 'display:block;margin:16px auto;padding:10px 24px;background:rgb(0,140,60);color:white;border:none;border-radius:8px;cursor:pointer;font-size:16px;'
-  createBtn.addEventListener('click', () => {
+  createBtn.addEventListener('click', async () => {
     if (selected.length < 1) { alert('Select at least one person.'); return }
     const groupName = prompt('Group name:') || 'Group'
     const convId = 'group_' + Date.now()
@@ -1632,12 +1612,12 @@ function createGroupChat() {
       nicknames: {}, background: null, style: 'default',
       members: allMembers, createdAt: Date.now()
     }
-    saveConversation(convId, conv)
+    await syncSaveConversation(conv)
     saveMessages(convId, [])
-    for (const m of allMembers) addConvForUser(m, convId)
+    for (const m of allMembers) await syncAddConvForUser(m, convId)
     clearChatPoll()
     card.innerHTML = ''
-    openChat(convId)
+    await openChat(convId)
   })
   card.appendChild(createBtn)
 }
