@@ -56,7 +56,7 @@ button.addEventListener('click', () => {
       return
     }
     localStorage.setItem('loggedInUser', username)
-    window.location.href = '../Home/home.html'
+    window.location.href = '../Bilerdia/Home/home.html'
   }
 })
 

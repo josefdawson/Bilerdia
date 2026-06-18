@@ -47,6 +47,26 @@ function saveComments(postId, comments) {
   localStorage.setItem('comments_' + postId, JSON.stringify(comments))
 }
 
+// ─── Friend helpers ─────────────────────
+function getFriends(user) {
+  return JSON.parse(localStorage.getItem('friends_' + user) || '[]')
+}
+function saveFriends(user, list) {
+  localStorage.setItem('friends_' + user, JSON.stringify(list))
+}
+function getFriendRequests(user) {
+  return JSON.parse(localStorage.getItem('fr_requests_' + user) || '[]')
+}
+function saveFriendRequests(user, list) {
+  localStorage.setItem('fr_requests_' + user, JSON.stringify(list))
+}
+function getSentRequests(user) {
+  return JSON.parse(localStorage.getItem('fr_sent_' + user) || '[]')
+}
+function saveSentRequests(user, list) {
+  localStorage.setItem('fr_sent_' + user, JSON.stringify(list))
+}
+
 // Profile picture
 const profileImg = document.getElementById('profile-picture')
 const userData = getUserData()
@@ -151,6 +171,31 @@ function buildMenuBody() {
       localStorage.setItem('playlists_' + name, oldPlaylists)
       localStorage.removeItem('playlists_' + loggedInUser)
     }
+    // Migrate friend data
+    const oldFriends = getFriends(loggedInUser)
+    saveFriends(name, oldFriends)
+    localStorage.removeItem('friends_' + loggedInUser)
+    const oldReqs = getFriendRequests(loggedInUser)
+    saveFriendRequests(name, oldReqs)
+    localStorage.removeItem('fr_requests_' + loggedInUser)
+    const oldSent = getSentRequests(loggedInUser)
+    saveSentRequests(name, oldSent)
+    localStorage.removeItem('fr_sent_' + loggedInUser)
+    for (const f of oldFriends) {
+      const fList = getFriends(f)
+      const idx = fList.indexOf(loggedInUser)
+      if (idx !== -1) { fList[idx] = name; saveFriends(f, fList) }
+    }
+    for (const r of oldReqs) {
+      const sList = getSentRequests(r)
+      const idx = sList.indexOf(loggedInUser)
+      if (idx !== -1) { sList[idx] = name; saveSentRequests(r, sList) }
+    }
+    for (const s of oldSent) {
+      const rList = getFriendRequests(s)
+      const idx = rList.indexOf(loggedInUser)
+      if (idx !== -1) { rList[idx] = name; saveFriendRequests(s, rList) }
+    }
     localStorage.setItem('user_' + name, JSON.stringify(oldData))
     localStorage.setItem('loggedInUser', name)
     window.location.reload()
@@ -214,6 +259,166 @@ function buildMenuBody() {
         em.style.color = '#aaa'
         el.appendChild(em)
       }
+      if (u !== loggedInUser) {
+        const friends = getFriends(loggedInUser)
+        const requests = getFriendRequests(loggedInUser)
+        const sent = getSentRequests(loggedInUser)
+        const btnRow = document.createElement('div')
+        btnRow.style.cssText = 'display:flex;gap:6px;margin-left:auto;'
+        if (friends.includes(u)) {
+          const fLabel = document.createElement('span')
+          fLabel.textContent = 'Friends ✓'
+          fLabel.style.cssText = 'color:rgb(0,200,100);font-size:12px;font-weight:bold;padding:4px 0;'
+          btnRow.appendChild(fLabel)
+        } else if (requests.includes(u)) {
+          const accept = document.createElement('button')
+          accept.textContent = 'Accept'
+          accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+          accept.addEventListener('click', () => {
+            const myFriends = getFriends(loggedInUser)
+            myFriends.push(u)
+            saveFriends(loggedInUser, myFriends)
+            const theirFriends = getFriends(u)
+            theirFriends.push(loggedInUser)
+            saveFriends(u, theirFriends)
+            const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
+            saveFriendRequests(loggedInUser, reqs)
+            const s = getSentRequests(u).filter(x => x !== loggedInUser)
+            saveSentRequests(u, s)
+            closeMenu()
+          })
+          btnRow.appendChild(accept)
+          const decline = document.createElement('button')
+          decline.textContent = 'Decline'
+          decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+          decline.addEventListener('click', () => {
+            const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
+            saveFriendRequests(loggedInUser, reqs)
+            const s = getSentRequests(u).filter(x => x !== loggedInUser)
+            saveSentRequests(u, s)
+            closeMenu()
+          })
+          btnRow.appendChild(decline)
+        } else if (sent.includes(u)) {
+          const pend = document.createElement('span')
+          pend.textContent = 'Pending'
+          pend.style.cssText = 'color:#aaa;font-size:12px;padding:4px 0;'
+          btnRow.appendChild(pend)
+        } else {
+          const addBtn = document.createElement('button')
+          addBtn.textContent = 'Add Friend'
+          addBtn.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+          addBtn.addEventListener('click', () => {
+            const theirReqs = getFriendRequests(u)
+            theirReqs.push(loggedInUser)
+            saveFriendRequests(u, theirReqs)
+            const mySent = getSentRequests(loggedInUser)
+            mySent.push(u)
+            saveSentRequests(loggedInUser, mySent)
+            closeMenu()
+          })
+          btnRow.appendChild(addBtn)
+        }
+        const msgBtn = document.createElement('button')
+        msgBtn.textContent = 'Message'
+        msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        msgBtn.addEventListener('click', () => {
+          clearChatPoll()
+          card.innerHTML = ''
+          openChat(u)
+        })
+        btnRow.appendChild(msgBtn)
+        el.appendChild(btnRow)
+      }
+      card.appendChild(el)
+    }
+  })
+
+  addMenuItem('Friends', () => {
+    closeMenu()
+    const card = document.getElementById('card')
+    card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+    document.getElementById('back-btn').addEventListener('click', renderPosts)
+    const friends = getFriends(loggedInUser)
+    if (friends.length === 0) {
+      card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">No friends yet. Add some from the Members list!</p>'
+      return
+    }
+    const requests = getFriendRequests(loggedInUser)
+    if (requests.length > 0) {
+      const h3 = document.createElement('h3')
+      h3.style.cssText = 'padding:0 16px;color:#ffa;'
+      h3.textContent = 'Pending requests (' + requests.length + ')'
+      card.appendChild(h3)
+      for (const r of requests) {
+        const rData = JSON.parse(localStorage.getItem('user_' + r) || '{}')
+        const el = document.createElement('div')
+        el.className = 'member-card'
+        const img = document.createElement('img')
+        img.src = rData.profilePic || 'Guest.png'
+        img.className = 'member-pfp'
+        el.appendChild(img)
+        const name = document.createElement('span')
+        name.textContent = r
+        name.style.fontWeight = 'bold'
+        el.appendChild(name)
+        const accept = document.createElement('button')
+        accept.textContent = 'Accept'
+        accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        accept.addEventListener('click', () => {
+          const myFriends = getFriends(loggedInUser)
+          myFriends.push(r)
+          saveFriends(loggedInUser, myFriends)
+          const theirFriends = getFriends(r)
+          theirFriends.push(loggedInUser)
+          saveFriends(r, theirFriends)
+          const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
+          saveFriendRequests(loggedInUser, reqs)
+          const sent = getSentRequests(r).filter(x => x !== loggedInUser)
+          saveSentRequests(r, sent)
+          closeMenu()
+          alert('You are now friends with ' + r + '!')
+        })
+        el.appendChild(accept)
+        const decline = document.createElement('button')
+        decline.textContent = 'Decline'
+        decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        decline.addEventListener('click', () => {
+          const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
+          saveFriendRequests(loggedInUser, reqs)
+          const sent = getSentRequests(r).filter(x => x !== loggedInUser)
+          saveSentRequests(r, sent)
+          closeMenu()
+        })
+        el.appendChild(decline)
+        card.appendChild(el)
+      }
+    }
+    const h3 = document.createElement('h3')
+    h3.style.cssText = 'padding:0 16px;color:white;'
+    h3.textContent = 'Your Friends (' + friends.length + ')'
+    card.appendChild(h3)
+    for (const f of friends) {
+      const fData = JSON.parse(localStorage.getItem('user_' + f) || '{}')
+      const el = document.createElement('div')
+      el.className = 'member-card'
+      const img = document.createElement('img')
+      img.src = fData.profilePic || 'Guest.png'
+      img.className = 'member-pfp'
+      el.appendChild(img)
+      const name = document.createElement('span')
+      name.textContent = f
+      name.style.fontWeight = 'bold'
+      el.appendChild(name)
+      const msgBtn = document.createElement('button')
+      msgBtn.textContent = 'Message'
+      msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;margin-left:auto;'
+      msgBtn.addEventListener('click', () => {
+        clearChatPoll()
+        card.innerHTML = ''
+        openChat(f)
+      })
+      el.appendChild(msgBtn)
       card.appendChild(el)
     }
   })
@@ -261,6 +466,11 @@ function buildMenuBody() {
     }
   })
 
+  addMenuItem('Chats', () => {
+    closeMenu()
+    renderChatList()
+  })
+
   addMenuItem('Log Out', () => {
     localStorage.removeItem('loggedInUser')
     window.location.href = '../index.html'
@@ -273,6 +483,9 @@ function buildMenuBody() {
     savePosts(posts)
     localStorage.removeItem('user_' + loggedInUser)
     localStorage.removeItem('playlists_' + loggedInUser)
+    localStorage.removeItem('friends_' + loggedInUser)
+    localStorage.removeItem('fr_requests_' + loggedInUser)
+    localStorage.removeItem('fr_sent_' + loggedInUser)
     localStorage.removeItem(loggedInUser)
     const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
     localStorage.setItem('registeredUsers', JSON.stringify(users.filter(u => u !== loggedInUser)))
@@ -538,7 +751,9 @@ document.querySelectorAll('.cfilter-btn').forEach(btn => {
 
 // ─── Post rendering ─────────────────────
 function renderPosts() {
+  clearChatPoll()
   const card = document.getElementById('card')
+  card.classList.remove('chat-card')
   card.innerHTML = ''
   let posts = getPosts()
 
@@ -788,5 +1003,643 @@ document.getElementById('comment-input').addEventListener('keydown', (e) => {
     document.getElementById('comment-submit').click()
   }
 })
+
+// ─── Chat System ─────────────────────────
+
+function userExists(username) {
+  return localStorage.getItem('user_' + username) !== null
+}
+
+function getConversationId(user1, user2) {
+  return [user1, user2].sort().join('_')
+}
+
+function getConversationsForUser(username) {
+  return JSON.parse(localStorage.getItem('convs_' + username) || '[]')
+}
+
+function addConvForUser(username, convId) {
+  const list = getConversationsForUser(username)
+  if (!list.includes(convId)) {
+    list.push(convId)
+    localStorage.setItem('convs_' + username, JSON.stringify(list))
+  }
+}
+
+function removeConvForUser(username, convId) {
+  const list = getConversationsForUser(username).filter(c => c !== convId)
+  localStorage.setItem('convs_' + username, JSON.stringify(list))
+}
+
+function getConversation(convId) {
+  let conv = JSON.parse(localStorage.getItem('conv_' + convId))
+  if (!conv) {
+    const parts = convId.split('_')
+    if (parts.length === 2 && userExists(parts[0]) && userExists(parts[1])) {
+      conv = {
+        id: convId,
+        type: 'dm',
+        name: null,
+        nicknames: {},
+        background: null,
+        style: 'default',
+        members: [parts[0], parts[1]],
+        createdAt: Date.now()
+      }
+      saveConversation(convId, conv)
+      addConvForUser(parts[0], convId)
+      addConvForUser(parts[1], convId)
+    }
+  }
+  return conv
+}
+
+function saveConversation(convId, data) {
+  localStorage.setItem('conv_' + convId, JSON.stringify(data))
+}
+
+function getMessages(convId) {
+  let msgs = JSON.parse(localStorage.getItem('msgs_' + convId))
+  if (!msgs) msgs = JSON.parse(localStorage.getItem('chats_' + convId) || '[]')
+  return msgs
+}
+
+function saveMessages(convId, msgs) {
+  localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
+}
+
+function migrateChat(convId) {
+  const oldKey = 'chats_' + convId
+  const newKey = 'msgs_' + convId
+  if (localStorage.getItem(oldKey) && !localStorage.getItem(newKey)) {
+    localStorage.setItem(newKey, localStorage.getItem(oldKey))
+    localStorage.removeItem(oldKey)
+  }
+}
+
+function getConvDisplayName(conv) {
+  if (conv.name) return conv.name
+  if (conv.type === 'dm') {
+    const other = conv.members.find(m => m !== loggedInUser)
+    return (conv.nicknames && conv.nicknames[other]) || other
+  }
+  return 'Group (' + conv.members.length + ')'
+}
+
+function getConvMemberName(conv, username) {
+  return (conv.nicknames && conv.nicknames[username]) || username
+}
+
+function getOrCreateDM(otherUser) {
+  const convId = getConversationId(loggedInUser, otherUser)
+  let conv = getConversation(convId)
+  if (!conv) {
+    conv = {
+      id: convId,
+      type: 'dm',
+      name: null,
+      nicknames: {},
+      background: null,
+      style: 'default',
+      members: [loggedInUser, otherUser],
+      createdAt: Date.now()
+    }
+    saveConversation(convId, conv)
+    addConvForUser(loggedInUser, convId)
+    addConvForUser(otherUser, convId)
+  }
+  return convId
+}
+
+function getAllConversations() {
+  const convIds = getConversationsForUser(loggedInUser)
+  const convs = []
+  for (const id of convIds) {
+    const conv = getConversation(id)
+    if (!conv) continue
+    migrateChat(id)
+    const msgs = getMessages(id)
+    convs.push({
+      conv,
+      lastMessage: msgs.length > 0 ? msgs[msgs.length - 1] : null,
+      unread: msgs.filter(m => m.from !== loggedInUser && !m.read).length
+    })
+  }
+  convs.sort((a, b) => {
+    if (!a.lastMessage) return 1
+    if (!b.lastMessage) return -1
+    return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt)
+  })
+  return convs
+}
+
+// ─── Chat List ─────────────────────────
+function renderChatList() {
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+  document.getElementById('back-btn').addEventListener('click', () => {
+    clearChatPoll()
+    renderPosts()
+  })
+
+  const createGroupBtn = document.createElement('button')
+  createGroupBtn.textContent = '+ New Group'
+  createGroupBtn.style.cssText = 'margin:10px;padding:6px 14px;background:rgb(0,140,60);color:white;border:none;border-radius:5px;cursor:pointer;font-size:13px;float:right;'
+  createGroupBtn.addEventListener('click', createGroupChat)
+  document.getElementById('back-btn').after(createGroupBtn)
+
+  const allConvs = getAllConversations()
+
+  const h3 = document.createElement('h3')
+  h3.style.cssText = 'padding:0 16px;color:white;clear:both;'
+  h3.textContent = 'Your Conversations'
+  card.appendChild(h3)
+
+  if (allConvs.length === 0) {
+    const p = document.createElement('p')
+    p.className = 'chat-list-header'
+    p.textContent = 'No conversations yet. Start one from the Members list!'
+    card.appendChild(p)
+    return
+  }
+
+  for (const c of allConvs) {
+    const conv = c.conv
+    const el = document.createElement('div')
+    el.className = 'post'
+    el.style.cursor = 'pointer'
+
+    const header = document.createElement('div')
+    header.className = 'post-header'
+
+    const displayName = getConvDisplayName(conv)
+    const isGroup = conv.type === 'group'
+
+    const avatar = document.createElement('div')
+    avatar.style.cssText = 'width:40px;height:40px;border-radius:50%;background:rgb(70,70,70);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;'
+    avatar.textContent = isGroup ? '👥' : displayName[0].toUpperCase()
+    header.appendChild(avatar)
+
+    const name = document.createElement('span')
+    name.className = 'post-name'
+    name.textContent = displayName
+    header.appendChild(name)
+
+    if (c.unread > 0) {
+      const badge = document.createElement('span')
+      badge.className = 'chat-unread'
+      badge.textContent = c.unread
+      header.appendChild(badge)
+    }
+
+    el.appendChild(header)
+
+    if (c.lastMessage) {
+      const prev = document.createElement('p')
+      prev.className = 'chat-preview'
+      const fromName = getConvMemberName(conv, c.lastMessage.from)
+      prev.textContent = (c.lastMessage.from === loggedInUser ? 'You: ' : fromName + ': ') + c.lastMessage.text
+      el.appendChild(prev)
+    }
+
+    el.addEventListener('click', () => {
+      clearChatPoll()
+      openChat(conv.id)
+    })
+    card.appendChild(el)
+  }
+}
+
+function clearChatPoll() {
+  if (window._chatPollInterval) {
+    clearInterval(window._chatPollInterval)
+    window._chatPollInterval = null
+  }
+}
+
+// ─── Open Chat ─────────────────────────
+function openChat(convId) {
+  const conv = getConversation(convId)
+  if (!conv) { renderChatList(); return }
+
+  const card = document.getElementById('card')
+  migrateChat(convId)
+
+  const allMsgs = getMessages(convId)
+  let changed = false
+  for (const m of allMsgs) {
+    if (m.from !== loggedInUser && !m.read) { m.read = true; changed = true }
+  }
+  if (changed) saveMessages(convId, allMsgs)
+
+  card.innerHTML = '<button id="chat-back" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back to chats</button>'
+  card.classList.add('chat-card')
+
+  document.getElementById('chat-back').addEventListener('click', () => {
+    card.classList.remove('chat-card')
+    clearChatPoll()
+    renderChatList()
+  })
+
+  const header = document.createElement('div')
+  header.style.cssText = 'display:flex;align-items:center;padding:8px 16px;border-bottom:1px solid #555;flex-shrink:0;'
+
+  const titleSpan = document.createElement('span')
+  titleSpan.style.cssText = 'font-weight:bold;font-size:18px;color:white;flex:1;'
+  titleSpan.textContent = getConvDisplayName(conv)
+  header.appendChild(titleSpan)
+
+  const settingsBtn = document.createElement('button')
+  settingsBtn.textContent = '⚙'
+  settingsBtn.style.cssText = 'background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;padding:0 4px;'
+  settingsBtn.addEventListener('click', () => openChatSettings(convId))
+  header.appendChild(settingsBtn)
+
+  card.appendChild(header)
+
+  const messagesDiv = document.createElement('div')
+  messagesDiv.className = 'chat-messages'
+  messagesDiv.id = 'chat-messages'
+
+  if (conv.background) {
+    if (conv.background.startsWith('#') || conv.background.startsWith('rgb')) {
+      messagesDiv.style.background = conv.background
+    } else {
+      messagesDiv.style.backgroundImage = 'url(' + conv.background + ')'
+      messagesDiv.style.backgroundSize = 'cover'
+    }
+  }
+
+  card.appendChild(messagesDiv)
+
+  const inputRow = document.createElement('div')
+  inputRow.className = 'chat-input-row'
+
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.className = 'chat-input'
+  input.id = 'chat-input'
+  input.placeholder = 'Type a message...'
+  inputRow.appendChild(input)
+
+  const sendBtn = document.createElement('button')
+  sendBtn.className = 'chat-send'
+  sendBtn.id = 'chat-send'
+  sendBtn.textContent = 'Send'
+  inputRow.appendChild(sendBtn)
+
+  card.appendChild(inputRow)
+
+  function sendMessage() {
+    const text = input.value.trim()
+    if (!text) return
+    input.value = ''
+    const all = getMessages(convId)
+    all.push({
+      id: Date.now(),
+      from: loggedInUser,
+      text,
+      read: false,
+      createdAt: new Date().toISOString()
+    })
+    saveMessages(convId, all)
+    renderMessagesInChat(convId)
+  }
+
+  sendBtn.addEventListener('click', sendMessage)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendMessage()
+  })
+
+  renderMessagesInChat(convId)
+
+  clearChatPoll()
+  window._chatPollInterval = setInterval(() => {
+    renderMessagesInChat(convId, true)
+  }, 3000)
+}
+
+function renderMessagesInChat(convId, isPolling) {
+  const messagesDiv = document.getElementById('chat-messages')
+  if (!messagesDiv) return
+
+  const conv = getConversation(convId)
+  if (!conv) return
+
+  const all = getMessages(convId)
+
+  let changed = false
+  for (const m of all) {
+    if (m.from !== loggedInUser && !m.read) { m.read = true; changed = true }
+  }
+  if (changed) saveMessages(convId, all)
+
+  if (!isPolling) {
+    messagesDiv.innerHTML = ''
+    if (all.length === 0) {
+      const p = document.createElement('p')
+      p.style.cssText = 'color:#999;text-align:center;padding:20px;'
+      p.textContent = 'No messages yet. Say hi!'
+      messagesDiv.appendChild(p)
+      return
+    }
+    for (const m of all) appendMessageEl(messagesDiv, m, conv)
+    messagesDiv.scrollTop = messagesDiv.scrollHeight
+  } else {
+    const count = messagesDiv.children.length
+    if (count === 1 && messagesDiv.children[0].tagName === 'P') {
+      messagesDiv.innerHTML = ''
+      for (const m of all) appendMessageEl(messagesDiv, m, conv)
+      messagesDiv.scrollTop = messagesDiv.scrollHeight
+    } else if (all.length > count) {
+      for (let i = count; i < all.length; i++) appendMessageEl(messagesDiv, all[i], conv)
+      messagesDiv.scrollTop = messagesDiv.scrollHeight
+    }
+  }
+}
+
+function appendMessageEl(container, m, conv) {
+  const el = document.createElement('div')
+  const isOwn = m.from === loggedInUser
+  const style = (conv && conv.style) || 'default'
+  el.className = 'chat-bubble style-' + style + ' ' + (isOwn ? 'own' : 'other')
+  if (conv && conv.type === 'group' && !isOwn) {
+    const nameEl = document.createElement('div')
+    nameEl.style.cssText = 'font-size:11px;color:rgb(150,200,255);margin-bottom:2px;'
+    nameEl.textContent = getConvMemberName(conv, m.from)
+    el.appendChild(nameEl)
+  }
+  const text = document.createElement('span')
+  text.textContent = m.text
+  el.appendChild(text)
+  const time = document.createElement('span')
+  time.className = 'chat-time'
+  time.textContent = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  el.appendChild(time)
+  container.appendChild(el)
+}
+
+// ─── Chat Settings ────────────────────
+function openChatSettings(convId) {
+  const conv = getConversation(convId)
+  if (!conv) return
+
+  const overlay = document.getElementById('detail-overlay')
+  const modal = document.getElementById('detail-modal')
+  if (!overlay || !modal) return
+
+  overlay.classList.remove('hidden')
+  modal.classList.remove('hidden')
+  modal.innerHTML = ''
+
+  const header = document.createElement('div')
+  header.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 20px;background:rgb(50,50,50);border-bottom:1px solid #555;flex-shrink:0;'
+
+  const backBtn = document.createElement('button')
+  backBtn.textContent = '← Back'
+  backBtn.style.cssText = 'background:rgb(70,70,70);color:white;border:none;border-radius:5px;padding:6px 16px;cursor:pointer;font-size:14px;'
+  backBtn.addEventListener('click', () => {
+    overlay.classList.add('hidden')
+    modal.classList.add('hidden')
+  })
+  header.appendChild(backBtn)
+
+  const title = document.createElement('span')
+  title.style.cssText = 'flex:1;font-weight:bold;font-size:20px;color:white;'
+  title.textContent = 'Chat Settings'
+  header.appendChild(title)
+  modal.appendChild(header)
+
+  const body = document.createElement('div')
+  body.style.cssText = 'flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;'
+
+  function addLabel(text) {
+    const l = document.createElement('label')
+    l.style.cssText = 'color:white;font-weight:bold;'
+    l.textContent = text
+    body.appendChild(l)
+  }
+
+  addLabel(conv.type === 'group' ? 'Group Name' : 'Chat Name')
+  const nameInput = document.createElement('input')
+  nameInput.type = 'text'
+  nameInput.value = conv.name || ''
+  nameInput.placeholder = conv.type === 'group' ? 'Group name...' : 'Chat name (optional)...'
+  nameInput.style.cssText = 'padding:8px;border-radius:5px;border:1px solid #555;background:rgb(40,40,40);color:rgb(220,220,220);outline:none;'
+  nameInput.addEventListener('input', () => {
+    conv.name = nameInput.value.trim() || null
+    saveConversation(convId, conv)
+  })
+  body.appendChild(nameInput)
+
+  addLabel('Nicknames')
+  for (const member of conv.members) {
+    if (member === loggedInUser) continue
+    const row = document.createElement('div')
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;'
+    const mName = document.createElement('span')
+    mName.style.cssText = 'color:#aaa;font-size:13px;width:80px;'
+    mName.textContent = member
+    row.appendChild(mName)
+    const nickInput = document.createElement('input')
+    nickInput.type = 'text'
+    nickInput.value = (conv.nicknames && conv.nicknames[member]) || ''
+    nickInput.placeholder = 'Nickname...'
+    nickInput.style.cssText = 'flex:1;padding:6px;border-radius:5px;border:1px solid #555;background:rgb(40,40,40);color:rgb(220,220,220);outline:none;font-size:13px;'
+    nickInput.addEventListener('input', () => {
+      if (!conv.nicknames) conv.nicknames = {}
+      if (nickInput.value.trim()) {
+        conv.nicknames[member] = nickInput.value.trim()
+      } else {
+        delete conv.nicknames[member]
+      }
+      saveConversation(convId, conv)
+    })
+    row.appendChild(nickInput)
+    body.appendChild(row)
+  }
+
+  addLabel('Background')
+  const bgRow = document.createElement('div')
+  bgRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;'
+  const colors = ['', '#2d2d2d', '#1a3a2a', '#2a1a3a', '#3a2a1a', '#1a2a3a', '#3a1a1a']
+  for (const c of colors) {
+    const btn = document.createElement('button')
+    btn.style.cssText = 'width:32px;height:32px;border-radius:50%;border:2px solid ' + ((!c && !conv.background) || (c === conv.background) ? '#fff' : 'transparent') + ';cursor:pointer;'
+    if (c) {
+      btn.style.background = c
+    } else {
+      btn.style.background = 'rgb(60,60,60)'
+      btn.textContent = '↺'
+      btn.style.cssText = btn.style.cssText + ';color:#aaa;font-size:16px;display:flex;align-items:center;justify-content:center;'
+    }
+    btn.addEventListener('click', () => {
+      conv.background = c || null
+      saveConversation(convId, conv)
+      const md = document.getElementById('chat-messages')
+      if (md) {
+        if (c) { md.style.background = c; md.style.backgroundImage = '' }
+        else { md.style.background = '' ; md.style.backgroundImage = '' }
+      }
+      openChatSettings(convId)
+    })
+    bgRow.appendChild(btn)
+  }
+  const bgUrlInput = document.createElement('input')
+  bgUrlInput.type = 'text'
+  bgUrlInput.value = (conv.background && !conv.background.startsWith('#') && !conv.background.startsWith('rgb')) ? conv.background : ''
+  bgUrlInput.placeholder = 'Or image URL...'
+  bgUrlInput.style.cssText = 'padding:6px;border-radius:5px;border:1px solid #555;background:rgb(40,40,40);color:rgb(220,220,220);outline:none;font-size:13px;min-width:150px;flex:1;'
+  bgUrlInput.addEventListener('input', () => {
+    conv.background = bgUrlInput.value.trim() || null
+    saveConversation(convId, conv)
+    const md = document.getElementById('chat-messages')
+    if (md) {
+      if (conv.background && !conv.background.startsWith('#') && !conv.background.startsWith('rgb')) {
+        md.style.backgroundImage = 'url(' + conv.background + ')'; md.style.backgroundSize = 'cover'
+      } else if (conv.background) {
+        md.style.background = conv.background; md.style.backgroundImage = ''
+      } else {
+        md.style.background = '' ; md.style.backgroundImage = ''
+      }
+    }
+  })
+  bgRow.appendChild(bgUrlInput)
+  body.appendChild(bgRow)
+
+  addLabel('Bubble Style')
+  const styleRow = document.createElement('div')
+  styleRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;'
+  const styles = ['default', 'green', 'purple', 'orange', 'pink', 'dark']
+  const styleNames = ['Default', 'Green', 'Purple', 'Orange', 'Pink', 'Dark']
+  for (let i = 0; i < styles.length; i++) {
+    const btn = document.createElement('button')
+    btn.textContent = styleNames[i]
+    const active = (conv.style === styles[i]) || (!conv.style && styles[i] === 'default')
+    btn.style.cssText = 'padding:6px 14px;border-radius:5px;border:2px solid ' + (active ? '#fff' : '#555') + ';cursor:pointer;background:rgb(60,60,60);color:rgb(220,220,220);font-size:13px;'
+    btn.addEventListener('click', () => {
+      conv.style = styles[i]
+      saveConversation(convId, conv)
+      openChatSettings(convId)
+    })
+    styleRow.appendChild(btn)
+  }
+  body.appendChild(styleRow)
+
+  if (conv.type === 'group') {
+    addLabel('Members (' + conv.members.length + ')')
+    for (const m of conv.members) {
+      const row = document.createElement('div')
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;'
+      const mData = JSON.parse(localStorage.getItem('user_' + m) || '{}')
+      const img = document.createElement('img')
+      img.src = mData.profilePic || 'Guest.png'
+      img.style.cssText = 'width:30px;height:30px;border-radius:50%;object-fit:cover;'
+      row.appendChild(img)
+      const name = document.createElement('span')
+      name.style.cssText = 'color:rgb(200,200,200);font-size:14px;flex:1;'
+      name.textContent = m + (m === loggedInUser ? ' (you)' : '')
+      row.appendChild(name)
+      if (m !== loggedInUser) {
+        const removeBtn = document.createElement('button')
+        removeBtn.textContent = 'Remove'
+        removeBtn.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;'
+        removeBtn.addEventListener('click', () => {
+          if (confirm('Remove ' + m + ' from this group?')) {
+            conv.members = conv.members.filter(x => x !== m)
+            saveConversation(convId, conv)
+            removeConvForUser(m, convId)
+            openChatSettings(convId)
+          }
+        })
+        row.appendChild(removeBtn)
+      }
+      body.appendChild(row)
+    }
+    const addBtn = document.createElement('button')
+    addBtn.textContent = '+ Add Members'
+    addBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:13px;align-self:flex-start;'
+    addBtn.addEventListener('click', () => {
+      const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+      const available = users.filter(u => u !== loggedInUser && !conv.members.includes(u))
+      if (available.length === 0) { alert('No other users to add.'); return }
+      const choice = prompt('Enter username to add:\n' + available.join('\n'))
+      if (choice && available.includes(choice.trim())) {
+        conv.members.push(choice.trim())
+        saveConversation(convId, conv)
+        addConvForUser(choice.trim(), convId)
+        openChatSettings(convId)
+      }
+    })
+    body.appendChild(addBtn)
+  }
+
+  modal.appendChild(body)
+}
+
+// ─── Group Chat ───────────────────────
+function createGroupChat() {
+  const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+  const available = users.filter(u => u !== loggedInUser)
+  if (available.length === 0) { alert('No other users to add.'); return }
+
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+  document.getElementById('back-btn').addEventListener('click', () => {
+    clearChatPoll()
+    renderPosts()
+  })
+
+  const h3 = document.createElement('h3')
+  h3.style.cssText = 'padding:0 16px;color:white;'
+  h3.textContent = 'Select members for group chat'
+  card.appendChild(h3)
+
+  const selected = []
+  for (const u of available) {
+    const el = document.createElement('div')
+    el.className = 'member-card'
+    el.style.cursor = 'pointer'
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'
+    cb.style.cssText = 'transform:scale(1.3);'
+    cb.addEventListener('change', () => {
+      if (cb.checked) { selected.push(u) } else { const idx = selected.indexOf(u); if (idx !== -1) selected.splice(idx, 1) }
+    })
+    el.appendChild(cb)
+    const uData = JSON.parse(localStorage.getItem('user_' + u) || '{}')
+    const img = document.createElement('img')
+    img.src = uData.profilePic || 'Guest.png'
+    img.className = 'member-pfp'
+    el.appendChild(img)
+    const nameSpan = document.createElement('span')
+    nameSpan.style.cssText = 'font-weight:bold;'
+    nameSpan.textContent = u
+    el.appendChild(nameSpan)
+    card.appendChild(el)
+  }
+
+  const createBtn = document.createElement('button')
+  createBtn.textContent = 'Create Group'
+  createBtn.style.cssText = 'display:block;margin:16px auto;padding:10px 24px;background:rgb(0,140,60);color:white;border:none;border-radius:8px;cursor:pointer;font-size:16px;'
+  createBtn.addEventListener('click', () => {
+    if (selected.length < 1) { alert('Select at least one person.'); return }
+    const groupName = prompt('Group name:') || 'Group'
+    const convId = 'group_' + Date.now()
+    const allMembers = [loggedInUser, ...selected]
+    const conv = {
+      id: convId, type: 'group', name: groupName,
+      nicknames: {}, background: null, style: 'default',
+      members: allMembers, createdAt: Date.now()
+    }
+    saveConversation(convId, conv)
+    saveMessages(convId, [])
+    for (const m of allMembers) addConvForUser(m, convId)
+    clearChatPoll()
+    card.innerHTML = ''
+    openChat(convId)
+  })
+  card.appendChild(createBtn)
+}
 
 renderPosts()

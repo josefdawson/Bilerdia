@@ -315,6 +315,50 @@ body {
     object-fit: cover;
 }
 
+/* ─── Friend System ──────────────────── */
+.friend-accept {
+    background: rgb(0, 140, 60);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.friend-decline {
+    background: rgb(180, 50, 50);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.friend-add {
+    background: rgb(0, 140, 60);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.friend-label {
+    color: rgb(0, 200, 100);
+    font-size: 12px;
+    font-weight: bold;
+    padding: 4px 0;
+}
+.friend-pending {
+    color: #aaa;
+    font-size: 12px;
+    padding: 4px 0;
+}
+.friend-btn-row {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
 /* ─── Post Detail Modal ──────────────── */
 #detail-overlay {
     position: fixed;
@@ -563,6 +607,113 @@ body {
 .caction-btn:hover { background: rgb(80, 80, 80); }
 .caction-btn.active { background: rgb(50, 100, 150); color: white; }
 
+/* ─── Chat ────────────────────────────── */
+.chat-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-header-name {
+    padding: 8px 16px;
+    border-bottom: 1px solid #555;
+    font-weight: bold;
+    font-size: 18px;
+    color: white;
+    flex-shrink: 0;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 300px;
+    max-height: 400px;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid #555;
+    flex-shrink: 0;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #555;
+    background: rgb(40, 40, 40);
+    color: rgb(220, 220, 220);
+    outline: none;
+}
+
+.chat-send {
+    background: rgb(0, 120, 200);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.chat-send:hover {
+    background: rgb(0, 140, 220);
+}
+
+.chat-bubble {
+    max-width: 70%;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    word-wrap: break-word;
+}
+
+.chat-bubble.own {
+    align-self: flex-end;
+    background: rgb(0, 100, 180);
+    color: rgb(220, 220, 220);
+}
+
+.chat-bubble.other {
+    align-self: flex-start;
+    background: rgb(60, 60, 60);
+    color: rgb(220, 220, 220);
+}
+
+.chat-time {
+    display: block;
+    font-size: 10px;
+    color: #999;
+    margin-top: 4px;
+}
+
+.chat-unread {
+    background: rgb(200, 50, 50);
+    color: white;
+    border-radius: 50%;
+    padding: 2px 8px;
+    font-size: 12px;
+    margin-left: auto;
+}
+
+.chat-preview {
+    margin: 4px 0;
+    font-size: 13px;
+    color: #999;
+}
+
+.chat-list-header {
+    padding: 16px;
+    text-align: center;
+    color: #999;
+}
+
 /* ─── Phone Portrait ─────────────────── */
 @media (max-width: 600px) {
     body { overflow: auto; margin: 10px; }
@@ -639,4 +790,8 @@ body {
     .post { margin: 10px; padding: 12px; }
 
     .post-actions { flex-wrap: wrap; }
+
+    .chat-card { height: auto; }
+    .chat-messages { min-height: 200px; max-height: 300px; }
+    .chat-bubble { max-width: 85%; }
 }
