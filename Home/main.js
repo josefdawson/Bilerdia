@@ -89,16 +89,10 @@ function timeAgo(dateStr) {
   return Math.floor(months / 12) + 'y ago'
 }
 
-// Profile picture (loaded after initSync populates data)
-const profileImg = document.getElementById('profile-picture')
-
 // Create button
 document.getElementById('create').addEventListener('click', () => {
   window.location.href = '../CreatePost/create.html?user=' + encodeURIComponent(loggedInUser)
 })
-
-// Profile button
-document.getElementById('profile-btn').addEventListener('click', openMenu)
 
 // ─── Profile Menu ───────────────────────
 const menu = document.getElementById('profile-menu')
@@ -118,7 +112,296 @@ function closeMenu() {
   overlay.classList.add('hidden')
 }
 
-profileImg.addEventListener('click', openMenu)
+// ─── Sidebar ─────────────────────────────
+let currentPage = 'posts'
+const sidebarPfp = document.getElementById('sidebar-pfp')
+const sidebarUsername = document.getElementById('sidebar-username')
+sidebarPfp.addEventListener('click', openMenu)
+
+function goToPosts() {
+  currentPage = 'posts'
+  renderPosts()
+}
+
+document.querySelectorAll('.sidebar-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const page = btn.dataset.page
+    if (page === currentPage) { goToPosts(); return }
+    currentPage = page
+    switch (page) {
+      case 'playlists': showPlaylists(); break
+      case 'members': showMembers(); break
+      case 'chats': showChats(); break
+      case 'history': showHistory(); break
+      case 'friends': showFriends(); break
+    }
+  })
+})
+
+function showPlaylists() {
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+  document.getElementById('back-btn').addEventListener('click', goToPosts)
+  const playlists = getPlaylists()
+  const names = Object.keys(playlists)
+  if (names.length === 0) {
+    card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">No playlists yet.</p>'
+    return
+  }
+  for (const name of names) {
+    const plEl = document.createElement('div')
+    plEl.className = 'post'
+    const header = document.createElement('div')
+    header.className = 'post-header'
+    const title = document.createElement('span')
+    title.style.fontWeight = 'bold'
+    title.style.fontSize = '18px'
+    title.textContent = name + ' (' + playlists[name].length + ')'
+    header.appendChild(title)
+    const delPl = document.createElement('button')
+    delPl.className = 'post-delete'
+    delPl.textContent = 'Delete Playlist'
+    delPl.addEventListener('click', () => {
+      if (confirm('Delete playlist "' + name + '"?')) {
+        const p = getPlaylists()
+        delete p[name]
+        savePlaylists(p)
+        renderPosts()
+      }
+    })
+    header.appendChild(delPl)
+    plEl.appendChild(header)
+    const posts = getPosts()
+    for (const pid of playlists[name]) {
+      const post = posts.find(x => x.id === pid)
+      if (post) plEl.appendChild(createPostElement(post))
+    }
+    card.appendChild(plEl)
+  }
+}
+
+function showMembers() {
+  const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+  if (users.length === 0) {
+    alert('No other members.')
+    return
+  }
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+  document.getElementById('back-btn').addEventListener('click', goToPosts)
+  for (const u of users) {
+    const uData = JSON.parse(localStorage.getItem('user_' + u) || '{}')
+    const el = document.createElement('div')
+    el.className = 'member-card'
+    const img = document.createElement('img')
+    img.src = uData.profilePic || 'Guest.png'
+    img.className = 'member-pfp'
+    const name = document.createElement('span')
+    name.textContent = u + (u === loggedInUser ? ' (you)' : '')
+    name.style.fontWeight = 'bold'
+    el.appendChild(img)
+    el.appendChild(name)
+    if (uData.email) {
+      const em = document.createElement('p')
+      em.textContent = uData.email
+      em.style.margin = '2px 0'
+      em.style.fontSize = '13px'
+      em.style.color = '#aaa'
+      el.appendChild(em)
+    }
+    if (u !== loggedInUser) {
+      const friends = getFriends(loggedInUser)
+      const requests = getFriendRequests(loggedInUser)
+      const sent = getSentRequests(loggedInUser)
+      const btnRow = document.createElement('div')
+      btnRow.style.cssText = 'display:flex;gap:6px;margin-left:auto;'
+      if (friends.includes(u)) {
+        const fLabel = document.createElement('span')
+        fLabel.textContent = 'Friends ✓'
+        fLabel.style.cssText = 'color:rgb(0,200,100);font-size:12px;font-weight:bold;padding:4px 0;'
+        btnRow.appendChild(fLabel)
+      } else if (requests.includes(u)) {
+        const accept = document.createElement('button')
+        accept.textContent = 'Accept'
+        accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        accept.addEventListener('click', async () => {
+          const myFriends = getFriends(loggedInUser)
+          myFriends.push(u)
+          saveFriends(loggedInUser, myFriends)
+          const theirFriends = getFriends(u)
+          theirFriends.push(loggedInUser)
+          saveFriends(u, theirFriends)
+          const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
+          saveFriendRequests(loggedInUser, reqs)
+          const s = getSentRequests(u).filter(x => x !== loggedInUser)
+          saveSentRequests(u, s)
+          await syncAddFriendAsAccepted(loggedInUser, u)
+          closeMenu()
+        })
+        btnRow.appendChild(accept)
+        const decline = document.createElement('button')
+        decline.textContent = 'Decline'
+        decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        decline.addEventListener('click', async () => {
+          const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
+          saveFriendRequests(loggedInUser, reqs)
+          const s = getSentRequests(u).filter(x => x !== loggedInUser)
+          saveSentRequests(u, s)
+          await syncDeleteFriendRequest(u, loggedInUser)
+          closeMenu()
+        })
+        btnRow.appendChild(decline)
+      } else if (sent.includes(u)) {
+        const pend = document.createElement('span')
+        pend.textContent = 'Pending'
+        pend.style.cssText = 'color:#aaa;font-size:12px;padding:4px 0;'
+        btnRow.appendChild(pend)
+      } else {
+        const addBtn = document.createElement('button')
+        addBtn.textContent = 'Add Friend'
+        addBtn.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        addBtn.addEventListener('click', async () => {
+          const theirReqs = getFriendRequests(u)
+          theirReqs.push(loggedInUser)
+          saveFriendRequests(u, theirReqs)
+          const mySent = getSentRequests(loggedInUser)
+          mySent.push(u)
+          saveSentRequests(loggedInUser, mySent)
+          await syncSendFriendRequest(loggedInUser, u)
+          closeMenu()
+        })
+        btnRow.appendChild(addBtn)
+      }
+      const msgBtn = document.createElement('button')
+      msgBtn.textContent = 'Message'
+      msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+      msgBtn.addEventListener('click', async () => {
+        clearChatPoll()
+        card.innerHTML = ''
+        const convId = await getOrCreateDM(u)
+        await openChat(convId)
+      })
+      btnRow.appendChild(msgBtn)
+      el.appendChild(btnRow)
+    }
+    card.appendChild(el)
+  }
+}
+
+function showChats() {
+  renderChatList()
+}
+
+function showHistory() {
+  const posts = getPosts().filter(p => p.accountName === loggedInUser)
+  if (posts.length === 0) {
+    alert('You have no posts yet.')
+    return
+  }
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back to all posts</button>'
+  document.getElementById('back-btn').addEventListener('click', goToPosts)
+  for (const post of posts) {
+    card.appendChild(createPostElement(post))
+  }
+}
+
+function showFriends() {
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+  document.getElementById('back-btn').addEventListener('click', goToPosts)
+  const friends = getFriends(loggedInUser)
+  if (friends.length === 0) {
+    card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">No friends yet. Add some from the Members list!</p>'
+    return
+  }
+  function renderFriendList() {
+    card.querySelectorAll('.friend-dynamic').forEach(el => el.remove())
+    const requests = getFriendRequests(loggedInUser)
+    if (requests.length > 0) {
+      const h3 = document.createElement('h3')
+      h3.className = 'friend-dynamic'
+      h3.style.cssText = 'padding:0 16px;color:#ffa;'
+      h3.textContent = 'Pending requests (' + requests.length + ')'
+      card.appendChild(h3)
+      for (const r of requests) {
+        const rData = JSON.parse(localStorage.getItem('user_' + r) || '{}')
+        const el = document.createElement('div')
+        el.className = 'member-card friend-dynamic'
+        const img = document.createElement('img')
+        img.src = rData.profilePic || 'Guest.png'
+        img.className = 'member-pfp'
+        el.appendChild(img)
+        const name = document.createElement('span')
+        name.textContent = r
+        name.style.fontWeight = 'bold'
+        el.appendChild(name)
+        const accept = document.createElement('button')
+        accept.textContent = 'Accept'
+        accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        accept.addEventListener('click', async () => {
+          const myFriends = getFriends(loggedInUser)
+          myFriends.push(r)
+          saveFriends(loggedInUser, myFriends)
+          const theirFriends = getFriends(r)
+          theirFriends.push(loggedInUser)
+          saveFriends(r, theirFriends)
+          const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
+          saveFriendRequests(loggedInUser, reqs)
+          const sent = getSentRequests(r).filter(x => x !== loggedInUser)
+          saveSentRequests(r, sent)
+          await syncAddFriendAsAccepted(loggedInUser, r)
+          renderFriendList()
+        })
+        el.appendChild(accept)
+        const decline = document.createElement('button')
+        decline.textContent = 'Decline'
+        decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        decline.addEventListener('click', async () => {
+          const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
+          saveFriendRequests(loggedInUser, reqs)
+          const sent = getSentRequests(r).filter(x => x !== loggedInUser)
+          saveSentRequests(r, sent)
+          await syncDeleteFriendRequest(r, loggedInUser)
+          renderFriendList()
+        })
+        el.appendChild(decline)
+        card.appendChild(el)
+      }
+    }
+    const h3 = document.createElement('h3')
+    h3.className = 'friend-dynamic'
+    h3.style.cssText = 'padding:0 16px;color:white;'
+    h3.textContent = 'Your Friends (' + friends.length + ')'
+    card.appendChild(h3)
+    for (const f of friends) {
+      const fData = JSON.parse(localStorage.getItem('user_' + f) || '{}')
+      const el = document.createElement('div')
+      el.className = 'member-card friend-dynamic'
+      const img = document.createElement('img')
+      img.src = fData.profilePic || 'Guest.png'
+      img.className = 'member-pfp'
+      el.appendChild(img)
+      const name = document.createElement('span')
+      name.textContent = f
+      name.style.fontWeight = 'bold'
+      el.appendChild(name)
+      const msgBtn = document.createElement('button')
+      msgBtn.textContent = 'Message'
+      msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+      msgBtn.addEventListener('click', async () => {
+        clearChatPoll()
+        card.innerHTML = ''
+        const convId = await getOrCreateDM(f)
+        await openChat(convId)
+      })
+      el.appendChild(msgBtn)
+      card.appendChild(el)
+    }
+  }
+  renderFriendList()
+}
+
 overlay.addEventListener('click', closeMenu)
 document.getElementById('menu-close').addEventListener('click', closeMenu)
 
@@ -126,7 +409,8 @@ document.getElementById('menu-close').addEventListener('click', closeMenu)
   await initSync()
   await syncRefreshConversations()
   const data = getUserData()
-  if (data.profilePic) profileImg.src = data.profilePic
+  if (data.profilePic) sidebarPfp.src = data.profilePic
+  sidebarUsername.textContent = loggedInUser
   renderPosts()
   setInterval(async () => {
     await refreshPostsFromSupabase()
@@ -134,76 +418,65 @@ document.getElementById('menu-close').addEventListener('click', closeMenu)
   }, 10000)
 })()
 
-// ─── Developer Console (F8) ─────────────
+// ─── Developer Console (F8 or ~) ─────────
 let devConsole = null
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'F8') {
-    e.preventDefault()
-    if (devConsole) { devConsole.remove(); devConsole = null; return }
-    devConsole = document.createElement('div')
-    devConsole.id = 'dev-console'
-    devConsole.innerHTML = '<div id="dev-header">Developer Console <button id="dev-close">&times;</button></div><div id="dev-body"></div>'
-    document.body.appendChild(devConsole)
-    document.getElementById('dev-close').onclick = () => { devConsole.remove(); devConsole = null }
-    const body = document.getElementById('dev-body')
-    const addBtn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; body.appendChild(b) }
-    addBtn('Delete My Account', async () => {
-      if (!confirm('Wipe your account forever? This removes EVERYTHING.')) return
-      if (!confirm('Really? All posts, likes, comments, chats, friends — gone.')) return
-      const user = loggedInUser
-      // Remove likes/dislikes from all posts + delete own posts
-      const allPosts = await supabaseGetPosts()
-      for (const p of allPosts) {
-        if ((p.likes || []).includes(user) || (p.dislikes || []).includes(user))
-          await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
-        if (p.author === user) await supabaseDeletePost(p.id)
-      }
-      // Delete all comments by user
-      for (const p of allPosts) {
-        const comments = await supabaseGetComments(p.id)
-        for (const c of comments)
-          if (c.author === user) await supabaseDeleteComment(c.id)
-      }
-      // Remove all friend relationships (both directions, any status)
-      const friends = await supabaseGetFriends(user)
-      for (const f of friends) await supabaseDeleteFriendRelationship(user, f)
-      const reqs = await supabaseGetFriendRequests(user)
-      for (const r of reqs) await supabaseDeleteFriendRelationship(r, user)
-      const sent = await supabaseGetSentRequests(user)
-      for (const s of sent) await supabaseDeleteFriendRelationship(user, s)
-      // Remove from all conversations
-      const convs = await supabaseGetUserConversations(user)
-      for (const c of convs) {
-        if (c.type === 'dm' || c.members.length <= 2) {
-          await _sup('DELETE', 'conversations', { eq: { id: c.id } })
-        } else {
-          c.members = c.members.filter(m => m !== user)
-          if (c.members.length > 0) await supabaseSaveConversation(c)
-          else await _sup('DELETE', 'conversations', { eq: { id: c.id } })
-        }
-      }
-      // Delete playlists
-      const playlists = await supabaseGetPlaylists(user)
-      for (const pl of playlists) await supabaseDeletePlaylist(pl.id)
-      // Delete the user
-      await supabaseDeleteUser(user)
-      localStorage.clear()
-      window.location.href = '../index.html'
-    })
-    addBtn('List All Users', async () => {
-      const users = await supabaseGetAllUsers()
-      alert('Users:\n' + users.join('\n'))
-    })
-    addBtn('Clear Local Data', () => {
-      if (confirm('Clear all local data and reload?')) { localStorage.clear(); location.reload() }
-    })
-    addBtn('Force Sync Now', async () => {
-      await initSync()
-      await syncRefreshConversations()
-      renderPosts()
-      alert('Sync complete!')
-    })
+
+async function wipeUser(user) {
+  const allPosts = await supabaseGetPosts()
+  for (const p of allPosts) {
+    if ((p.likes||[]).includes(user) || (p.dislikes||[]).includes(user))
+      await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
+    if (p.author === user) await supabaseDeletePost(p.id)
   }
+  for (const p of allPosts) {
+    const comments = await supabaseGetComments(p.id)
+    for (const c of comments) if (c.author === user) await supabaseDeleteComment(c.id)
+  }
+  for (const f of await supabaseGetFriends(user)) await supabaseDeleteFriendRelationship(user, f)
+  for (const r of await supabaseGetFriendRequests(user)) await supabaseDeleteFriendRelationship(r, user)
+  for (const s of await supabaseGetSentRequests(user)) await supabaseDeleteFriendRelationship(user, s)
+  for (const c of await supabaseGetUserConversations(user)) {
+    if (c.type === 'dm' || c.members.length <= 2) await _sup('DELETE', 'conversations', { eq: { id: c.id } })
+    else { c.members = c.members.filter(m => m !== user); if (c.members.length > 0) await supabaseSaveConversation(c); else await _sup('DELETE', 'conversations', { eq: { id: c.id } }) }
+  }
+  for (const pl of await supabaseGetPlaylists(user)) await supabaseDeletePlaylist(pl.id)
+  await supabaseDeleteUser(user)
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'F8' && e.key !== '`') return
+  e.preventDefault()
+  if (devConsole) { devConsole.remove(); devConsole = null; return }
+  devConsole = document.createElement('div')
+  devConsole.id = 'dev-console'
+  devConsole.innerHTML = '<div id="dev-header">Developer Console <button id="dev-close">&times;</button></div><div id="dev-body"></div>'
+  document.body.appendChild(devConsole)
+  document.getElementById('dev-close').onclick = () => { devConsole.remove(); devConsole = null }
+  const body = document.getElementById('dev-body')
+  const addBtn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; body.appendChild(b) }
+  addBtn('Delete Other User', async () => {
+    const users = await supabaseGetAllUsers()
+    const target = prompt('Enter username to delete:\n\nUsers:\n' + users.join('\n'))
+    if (!target || target === loggedInUser) return
+    if (!await supabaseUserExists(target)) { alert('User not found.'); return }
+    if (!confirm('Delete "' + target + '" entirely? Posts, comments, chats — all gone.')) return
+    if (!confirm('Final warning! This cannot be undone.')) return
+    await wipeUser(target)
+    alert('User "' + target + '" has been wiped.')
+  })
+  addBtn('List All Users', async () => {
+    const users = await supabaseGetAllUsers()
+    alert('Users:\n' + users.join('\n'))
+  })
+  addBtn('Clear Local Data', () => {
+    if (confirm('Clear all local data and reload?')) { localStorage.clear(); location.reload() }
+  })
+  addBtn('Force Sync Now', async () => {
+    await initSync()
+    await syncRefreshConversations()
+    renderPosts()
+    alert('Sync complete!')
+  })
 })
 
 function buildMenuBody() {
@@ -237,7 +510,7 @@ function buildMenuBody() {
           const d = getUserData()
           d.profilePic = e.target.result
           saveUserData(d)
-          profileImg.src = e.target.result
+          sidebarPfp.src = e.target.result
           openMenu()
         }
         reader.readAsDataURL(file)
@@ -315,270 +588,6 @@ function buildMenuBody() {
     }
   })
 
-  addMenuItem('History', () => {
-    const posts = getPosts().filter(p => p.accountName === loggedInUser)
-    if (posts.length === 0) {
-      alert('You have no posts yet.')
-      return
-    }
-    closeMenu()
-    const card = document.getElementById('card')
-    card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back to all posts</button>'
-    document.getElementById('back-btn').addEventListener('click', renderPosts)
-    for (const post of posts) {
-      card.appendChild(createPostElement(post))
-    }
-  })
-
-  addMenuItem('Members', () => {
-    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
-    if (users.length === 0) {
-      alert('No other members.')
-      return
-    }
-    closeMenu()
-    const card = document.getElementById('card')
-    card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
-    document.getElementById('back-btn').addEventListener('click', renderPosts)
-    for (const u of users) {
-      const uData = JSON.parse(localStorage.getItem('user_' + u) || '{}')
-      const el = document.createElement('div')
-      el.className = 'member-card'
-      const img = document.createElement('img')
-      img.src = uData.profilePic || 'Guest.png'
-      img.className = 'member-pfp'
-      const name = document.createElement('span')
-      name.textContent = u + (u === loggedInUser ? ' (you)' : '')
-      name.style.fontWeight = 'bold'
-      el.appendChild(img)
-      el.appendChild(name)
-      if (uData.email) {
-        const em = document.createElement('p')
-        em.textContent = uData.email
-        em.style.margin = '2px 0'
-        em.style.fontSize = '13px'
-        em.style.color = '#aaa'
-        el.appendChild(em)
-      }
-      if (u !== loggedInUser) {
-        const friends = getFriends(loggedInUser)
-        const requests = getFriendRequests(loggedInUser)
-        const sent = getSentRequests(loggedInUser)
-        const btnRow = document.createElement('div')
-        btnRow.style.cssText = 'display:flex;gap:6px;margin-left:auto;'
-        if (friends.includes(u)) {
-          const fLabel = document.createElement('span')
-          fLabel.textContent = 'Friends ✓'
-          fLabel.style.cssText = 'color:rgb(0,200,100);font-size:12px;font-weight:bold;padding:4px 0;'
-          btnRow.appendChild(fLabel)
-        } else if (requests.includes(u)) {
-          const accept = document.createElement('button')
-          accept.textContent = 'Accept'
-          accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-          accept.addEventListener('click', async () => {
-            const myFriends = getFriends(loggedInUser)
-            myFriends.push(u)
-            saveFriends(loggedInUser, myFriends)
-            const theirFriends = getFriends(u)
-            theirFriends.push(loggedInUser)
-            saveFriends(u, theirFriends)
-            const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
-            saveFriendRequests(loggedInUser, reqs)
-            const s = getSentRequests(u).filter(x => x !== loggedInUser)
-            saveSentRequests(u, s)
-            await syncAddFriendAsAccepted(loggedInUser, u)
-            closeMenu()
-          })
-          btnRow.appendChild(accept)
-          const decline = document.createElement('button')
-          decline.textContent = 'Decline'
-          decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-          decline.addEventListener('click', async () => {
-            const reqs = getFriendRequests(loggedInUser).filter(x => x !== u)
-            saveFriendRequests(loggedInUser, reqs)
-            const s = getSentRequests(u).filter(x => x !== loggedInUser)
-            saveSentRequests(u, s)
-            await syncDeleteFriendRequest(u, loggedInUser)
-            closeMenu()
-          })
-          btnRow.appendChild(decline)
-        } else if (sent.includes(u)) {
-          const pend = document.createElement('span')
-          pend.textContent = 'Pending'
-          pend.style.cssText = 'color:#aaa;font-size:12px;padding:4px 0;'
-          btnRow.appendChild(pend)
-        } else {
-          const addBtn = document.createElement('button')
-          addBtn.textContent = 'Add Friend'
-          addBtn.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-          addBtn.addEventListener('click', async () => {
-            const theirReqs = getFriendRequests(u)
-            theirReqs.push(loggedInUser)
-            saveFriendRequests(u, theirReqs)
-            const mySent = getSentRequests(loggedInUser)
-            mySent.push(u)
-            saveSentRequests(loggedInUser, mySent)
-            await syncSendFriendRequest(loggedInUser, u)
-            closeMenu()
-          })
-          btnRow.appendChild(addBtn)
-        }
-        const msgBtn = document.createElement('button')
-        msgBtn.textContent = 'Message'
-        msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-        msgBtn.addEventListener('click', async () => {
-          clearChatPoll()
-          card.innerHTML = ''
-          const convId = await getOrCreateDM(u)
-          await openChat(convId)
-        })
-        btnRow.appendChild(msgBtn)
-        el.appendChild(btnRow)
-      }
-      card.appendChild(el)
-    }
-  })
-
-  addMenuItem('Friends', () => {
-    closeMenu()
-    const card = document.getElementById('card')
-    card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
-    document.getElementById('back-btn').addEventListener('click', renderPosts)
-    const friends = getFriends(loggedInUser)
-    if (friends.length === 0) {
-      card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">No friends yet. Add some from the Members list!</p>'
-      return
-    }
-    const requests = getFriendRequests(loggedInUser)
-    if (requests.length > 0) {
-      const h3 = document.createElement('h3')
-      h3.style.cssText = 'padding:0 16px;color:#ffa;'
-      h3.textContent = 'Pending requests (' + requests.length + ')'
-      card.appendChild(h3)
-      for (const r of requests) {
-        const rData = JSON.parse(localStorage.getItem('user_' + r) || '{}')
-        const el = document.createElement('div')
-        el.className = 'member-card'
-        const img = document.createElement('img')
-        img.src = rData.profilePic || 'Guest.png'
-        img.className = 'member-pfp'
-        el.appendChild(img)
-        const name = document.createElement('span')
-        name.textContent = r
-        name.style.fontWeight = 'bold'
-        el.appendChild(name)
-        const accept = document.createElement('button')
-        accept.textContent = 'Accept'
-        accept.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-        accept.addEventListener('click', async () => {
-          const myFriends = getFriends(loggedInUser)
-          myFriends.push(r)
-          saveFriends(loggedInUser, myFriends)
-          const theirFriends = getFriends(r)
-          theirFriends.push(loggedInUser)
-          saveFriends(r, theirFriends)
-          const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
-          saveFriendRequests(loggedInUser, reqs)
-          const sent = getSentRequests(r).filter(x => x !== loggedInUser)
-          saveSentRequests(r, sent)
-          await syncAddFriendAsAccepted(loggedInUser, r)
-          closeMenu()
-          alert('You are now friends with ' + r + '!')
-        })
-        el.appendChild(accept)
-        const decline = document.createElement('button')
-        decline.textContent = 'Decline'
-        decline.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
-        decline.addEventListener('click', async () => {
-          const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
-          saveFriendRequests(loggedInUser, reqs)
-          const sent = getSentRequests(r).filter(x => x !== loggedInUser)
-          saveSentRequests(r, sent)
-          await syncDeleteFriendRequest(r, loggedInUser)
-          closeMenu()
-        })
-        el.appendChild(decline)
-        card.appendChild(el)
-      }
-    }
-    const h3 = document.createElement('h3')
-    h3.style.cssText = 'padding:0 16px;color:white;'
-    h3.textContent = 'Your Friends (' + friends.length + ')'
-    card.appendChild(h3)
-    for (const f of friends) {
-      const fData = JSON.parse(localStorage.getItem('user_' + f) || '{}')
-      const el = document.createElement('div')
-      el.className = 'member-card'
-      const img = document.createElement('img')
-      img.src = fData.profilePic || 'Guest.png'
-      img.className = 'member-pfp'
-      el.appendChild(img)
-      const name = document.createElement('span')
-      name.textContent = f
-      name.style.fontWeight = 'bold'
-      el.appendChild(name)
-      const msgBtn = document.createElement('button')
-      msgBtn.textContent = 'Message'
-      msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;margin-left:auto;'
-      msgBtn.addEventListener('click', async () => {
-        clearChatPoll()
-        card.innerHTML = ''
-        const convId = await getOrCreateDM(f)
-        await openChat(convId)
-      })
-      el.appendChild(msgBtn)
-      card.appendChild(el)
-    }
-  })
-
-  addMenuItem('Playlists', () => {
-    closeMenu()
-    const card = document.getElementById('card')
-    card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
-    document.getElementById('back-btn').addEventListener('click', renderPosts)
-    const playlists = getPlaylists()
-    const names = Object.keys(playlists)
-    if (names.length === 0) {
-      card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">No playlists yet.</p>'
-      return
-    }
-    for (const name of names) {
-      const plEl = document.createElement('div')
-      plEl.className = 'post'
-      const header = document.createElement('div')
-      header.className = 'post-header'
-      const title = document.createElement('span')
-      title.style.fontWeight = 'bold'
-      title.style.fontSize = '18px'
-      title.textContent = name + ' (' + playlists[name].length + ')'
-      header.appendChild(title)
-      const delPl = document.createElement('button')
-      delPl.className = 'post-delete'
-      delPl.textContent = 'Delete Playlist'
-      delPl.addEventListener('click', () => {
-        if (confirm('Delete playlist "' + name + '"?')) {
-          const p = getPlaylists()
-          delete p[name]
-          savePlaylists(p)
-          renderPosts()
-        }
-      })
-      header.appendChild(delPl)
-      plEl.appendChild(header)
-      const posts = getPosts()
-      for (const pid of playlists[name]) {
-        const post = posts.find(x => x.id === pid)
-        if (post) plEl.appendChild(createPostElement(post))
-      }
-      card.appendChild(plEl)
-    }
-  })
-
-  addMenuItem('Chats', () => {
-    closeMenu()
-    renderChatList()
-  })
-
   addMenuItem('Log Out', () => {
     localStorage.removeItem('loggedInUser')
     window.location.href = '../index.html'
@@ -587,26 +596,7 @@ function buildMenuBody() {
   addMenuItem('Delete Account', async () => {
     if (!confirm('Wipe your account forever? This removes EVERYTHING.')) return
     if (!confirm('Really? All posts, likes, comments, chats, friends — gone.')) return
-    const user = loggedInUser
-    const allPosts = await supabaseGetPosts()
-    for (const p of allPosts) {
-      if ((p.likes||[]).includes(user) || (p.dislikes||[]).includes(user))
-        await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
-      if (p.author === user) await supabaseDeletePost(p.id)
-    }
-    for (const p of allPosts) {
-      const comments = await supabaseGetComments(p.id)
-      for (const c of comments) if (c.author === user) await supabaseDeleteComment(c.id)
-    }
-    for (const f of await supabaseGetFriends(user)) await supabaseDeleteFriendRelationship(user, f)
-    for (const r of await supabaseGetFriendRequests(user)) await supabaseDeleteFriendRelationship(r, user)
-    for (const s of await supabaseGetSentRequests(user)) await supabaseDeleteFriendRelationship(user, s)
-    for (const c of await supabaseGetUserConversations(user)) {
-      if (c.type === 'dm' || c.members.length <= 2) await _sup('DELETE', 'conversations', { eq: { id: c.id } })
-      else { c.members = c.members.filter(m => m !== user); if (c.members.length > 0) await supabaseSaveConversation(c); else await _sup('DELETE', 'conversations', { eq: { id: c.id } }) }
-    }
-    for (const pl of await supabaseGetPlaylists(user)) await supabaseDeletePlaylist(pl.id)
-    await supabaseDeleteUser(user)
+    await wipeUser(loggedInUser)
     localStorage.clear()
     window.location.href = '../index.html'
   })

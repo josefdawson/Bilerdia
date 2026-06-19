@@ -7,6 +7,20 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="sidebar">
+        <div id="sidebar-header">
+            <img id="sidebar-pfp" src="Guest.png">
+            <span id="sidebar-username"></span>
+        </div>
+        <div id="sidebar-body">
+            <button class="sidebar-btn" data-page="playlists">Playlists</button>
+            <button class="sidebar-btn" data-page="members">Members</button>
+            <button class="sidebar-btn" data-page="chats">Chats</button>
+            <button class="sidebar-btn" data-page="history">History</button>
+            <button class="sidebar-btn" data-page="friends">Friends</button>
+        </div>
+    </div>
+
     <h1 id="title">Bilerdia</h1>
     <div id="video">
         <!--<video controls>
@@ -16,8 +30,6 @@
     </div>
     <div id="card"></div>
     <button id="create">Create</button>
-    <button id="profile-btn">Profile</button>
-    <img id="profile-picture" src="Guest.png">
     <input id="search" placeholder="Search Bar">
     <div id="filters">
         <button class="filter-btn active" data-sort="latest">Latest</button>

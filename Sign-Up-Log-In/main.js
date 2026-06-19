@@ -59,7 +59,7 @@ button.addEventListener('click', async () => {
       return
     }
     localStorage.setItem('loggedInUser', username)
-    window.location.href = 'Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
+    window.location.href = 'Home/home.html?user=' + encodeURIComponent(username)
   }
 })
 
@@ -83,11 +83,11 @@ function handleGoogleCredential(response) {
       })
     }
     localStorage.setItem('loggedInUser', username)
-    window.location.href = 'Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
+    window.location.href = 'Home/home.html?user=' + encodeURIComponent(username)
   })
 }
 
-if (typeof GOOGLE_CLIENT_ID !== 'undefined' && GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
+if (typeof GOOGLE_CLIENT_ID !== 'undefined' && GOOGLE_CLIENT_ID !== '482132700101-gu179si8bji8euierptrebrhadahl63a.apps.googleusercontent.com') {
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback: handleGoogleCredential
