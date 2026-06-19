@@ -4,13 +4,15 @@ function postFromSupabase(p) {
   const tags = typeof raw === 'string' && raw
     ? raw.replace(/^\[|\]$/g, '').replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean)
     : Array.isArray(raw) ? raw : []
+  let mediaArr = p.media
+  if (typeof mediaArr === 'string') { try { mediaArr = JSON.parse(mediaArr) } catch(e) { mediaArr = [] } }
   return {
     id: p.id,
     title: p.title,
     description: p.description,
     tags,
-    images: (p.media || []).filter(m => m.type !== 'video').map(m => m.url || m),
-    videos: (p.media || []).filter(m => m.type === 'video').map(m => m.url || m),
+    images: (mediaArr || []).filter(m => m.type !== 'video').map(m => m.url || m).filter(Boolean),
+    videos: (mediaArr || []).filter(m => m.type === 'video').map(m => m.url || m).filter(Boolean),
     accountName: p.author,
     profilePic: p.author_pic || 'Guest.png',
     pinned: p.pinned || false,
@@ -68,8 +70,9 @@ async function initSync() {
   ])
 
   // Upload any local-only posts to Supabase (data not yet synced)
+  const deletedIds = JSON.parse(localStorage.getItem('deletedPostIds') || '[]')
   for (const p of existingPosts) {
-    if (typeof p.id === 'number' && !supaPosts.find(s => s.id === p.id)) {
+    if (typeof p.id === 'number' && !supaPosts.find(s => s.id === p.id) && !deletedIds.includes(p.id)) {
       const result = await supabaseCreatePost(postToSupabase(p))
       if (result) p.id = result.id
     }
@@ -110,7 +113,11 @@ async function initSync() {
 
 // ─── Periodic refresh ─────────────────────
 async function refreshPostsFromSupabase() {
-  const posts = await supabaseGetPosts()
+  const [posts, registered] = await Promise.all([
+    supabaseGetPosts(),
+    supabaseGetAllUsers()
+  ])
+  localStorage.setItem('registeredUsers', JSON.stringify(registered))
   const localPosts = posts.map(postFromSupabase)
   const existing = JSON.parse(localStorage.getItem('posts') || '[]')
   for (const lp of localPosts) {
@@ -127,15 +134,21 @@ async function refreshPostsFromSupabase() {
 
 // ─── Sync writes: localStorage + Supabase ───
 
+function markPostDeleted(id) {
+  const deleted = JSON.parse(localStorage.getItem('deletedPostIds') || '[]')
+  if (!deleted.includes(id)) { deleted.push(id); localStorage.setItem('deletedPostIds', JSON.stringify(deleted)) }
+}
+
 async function syncWritePosts(posts) {
   localStorage.setItem('posts', JSON.stringify(posts))
   const existing = await supabaseGetPosts()
   const existingIds = new Set(existing.map(p => p.id))
+  const deletedIds = JSON.parse(localStorage.getItem('deletedPostIds') || '[]')
   for (const p of posts) {
     if (existingIds.has(p.id)) {
       const { id, ...upd } = postToSupabase(p)
       await supabaseUpdatePost(p.id, upd)
-    } else if (typeof p.id === 'number' && p.id > 1000000) {
+    } else if (typeof p.id === 'number' && p.id > 1000000 && !deletedIds.includes(p.id)) {
       const result = await supabaseCreatePost(postToSupabase(p))
       if (result) p.id = result.id
     }

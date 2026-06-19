@@ -27,7 +27,7 @@ document.getElementById('media-input').addEventListener('change', (e) => {
   }
 })
 
-document.getElementById('submit-btn').addEventListener('click', () => {
+document.getElementById('submit-btn').addEventListener('click', async () => {
   const title = document.getElementById('post-title').value.trim()
   const description = document.getElementById('post-description').value.trim()
   const tagsRaw = document.getElementById('post-tags').value.trim()
@@ -35,6 +35,33 @@ document.getElementById('submit-btn').addEventListener('click', () => {
 
   if (!title) {
     alert('Please enter a title.')
+    return
+  }
+
+  // ── Cooldown check ──
+  const lastPostTime = localStorage.getItem('lastPostTime_' + loggedInUser)
+  if (lastPostTime) {
+    const elapsed = Date.now() - parseInt(lastPostTime, 10)
+    if (elapsed < 120000) {
+      const remaining = Math.ceil((120000 - elapsed) / 1000)
+      alert('Please wait ' + remaining + ' seconds before posting again.')
+      return
+    }
+  }
+
+  // ── Daily limit check ──
+  const allPosts = JSON.parse(localStorage.getItem('posts') || '[]')
+  const today = new Date().toDateString()
+  const todayCount = allPosts.filter(p => p.accountName === loggedInUser && new Date(p.createdAt).toDateString() === today).length
+  if (todayCount >= 5) {
+    alert('You have reached the maximum of 5 posts per day.')
+    return
+  }
+
+  // ── Duplicate title+description check ──
+  const dup = allPosts.find(p => p.title === title && p.description === description)
+  if (dup) {
+    alert('A post with the same title and description already exists.')
     return
   }
 
@@ -76,6 +103,8 @@ document.getElementById('submit-btn').addEventListener('click', () => {
       post.id = result.id
       localStorage.setItem('posts', JSON.stringify(posts))
     }
+
+    localStorage.setItem('lastPostTime_' + loggedInUser, Date.now().toString())
 
     window.location.href = '../Home/home.html?user=' + encodeURIComponent(loggedInUser)
   })

@@ -183,7 +183,7 @@ function showPlaylists() {
 function showMembers() {
   const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
   if (users.length === 0) {
-    alert('No other members.')
+    alert('No other members found. Try syncing from Supabase first.')
     return
   }
   const card = document.getElementById('card')
@@ -426,7 +426,7 @@ async function wipeUser(user) {
   for (const p of allPosts) {
     if ((p.likes||[]).includes(user) || (p.dislikes||[]).includes(user))
       await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
-    if (p.author === user) await supabaseDeletePost(p.id)
+    if (p.author === user) { markPostDeleted(p.id); await supabaseDeletePost(p.id) }
   }
   for (const p of allPosts) {
     const comments = await supabaseGetComments(p.id)
@@ -476,6 +476,45 @@ document.addEventListener('keydown', (e) => {
     await syncRefreshConversations()
     renderPosts()
     alert('Sync complete!')
+  })
+  addBtn('Manage Other User Posts', async () => {
+    const users = await supabaseGetAllUsers()
+    const target = prompt('Enter username to manage posts:\n\nUsers:\n' + users.join('\n'))
+    if (!target || target === loggedInUser) return
+    const allPosts = JSON.parse(localStorage.getItem('posts') || '[]').filter(p => p.accountName === target)
+    const supaPosts = await supabaseGetPosts()
+    for (const sp of supaPosts) { if (sp.author === target && !allPosts.find(p => p.id === sp.id)) allPosts.push(postFromSupabase(sp)) }
+    if (allPosts.length === 0) { alert('No posts found for "' + target + '".'); return }
+    const msg = allPosts.map((p, i) => (i + 1) + '. [ID:' + p.id + '] ' + (p.title || '(no title)')).join('\n')
+    const choice = prompt('Enter the NUMBER of the post to delete (or "all" to delete all):\n\n' + msg)
+    if (!choice) return
+    if (choice.toLowerCase() === 'all') {
+      if (!confirm('Delete ALL posts by "' + target + '" (' + allPosts.length + ' posts)?')) return
+      for (const p of allPosts) {
+        markPostDeleted(p.id)
+        await supabaseDeletePost(p.id)
+        const comments = JSON.parse(localStorage.getItem('comments_' + p.id) || '[]')
+        for (const c of comments) await supabaseDeleteComment(c.id)
+        localStorage.removeItem('comments_' + p.id)
+      }
+      const remaining = JSON.parse(localStorage.getItem('posts') || '[]').filter(p => p.accountName !== target)
+      localStorage.setItem('posts', JSON.stringify(remaining))
+      alert('Deleted ' + allPosts.length + ' posts by "' + target + '".')
+    } else {
+      const idx = parseInt(choice, 10) - 1
+      if (isNaN(idx) || idx < 0 || idx >= allPosts.length) { alert('Invalid number.'); return }
+      const p = allPosts[idx]
+      if (!confirm('Delete post "' + p.title + '" by "' + target + '"?')) return
+      markPostDeleted(p.id)
+      await supabaseDeletePost(p.id)
+      const comments = JSON.parse(localStorage.getItem('comments_' + p.id) || '[]')
+      for (const c of comments) await supabaseDeleteComment(c.id)
+      localStorage.removeItem('comments_' + p.id)
+      const remaining = JSON.parse(localStorage.getItem('posts') || '[]').filter(pp => pp.id !== p.id)
+      localStorage.setItem('posts', JSON.stringify(remaining))
+      alert('Deleted post "' + p.title + '".')
+    }
+    renderPosts()
   })
 })
 
@@ -727,21 +766,32 @@ function openDetail(postId) {
     content.appendChild(tagsDiv)
   }
 
-  if (post.media && post.media.length > 0) {
+  if ((post.images && post.images.length > 0) || (post.videos && post.videos.length > 0)) {
     const mediaDiv = document.createElement('div')
     mediaDiv.className = 'detail-media'
-    for (const item of post.media) {
-      if (item.type === 'video') {
-        const video = document.createElement('video')
-        video.src = item.data
-        video.controls = true
-        mediaDiv.appendChild(video)
-      } else {
+    for (const url of (post.videos || [])) {
+      const video = document.createElement('video')
+      video.src = url
+      video.controls = true
+      mediaDiv.appendChild(video)
+    }
+    for (const url of (post.images || [])) {
+      if (url && url.startsWith('data:')) {
+        const wrapper = document.createElement('div')
+        wrapper.className = 'media-wrapper'
+        const loader = document.createElement('div')
+        loader.className = 'media-loading'
+        wrapper.appendChild(loader)
         const img = document.createElement('img')
-        img.src = item.data
-        mediaDiv.appendChild(img)
+        img.style.display = 'none'
+        img.onload = () => { try { wrapper.removeChild(loader) } catch(e) {}; img.style.display = '' }
+        img.onerror = () => { try { wrapper.removeChild(loader) } catch(e) {}; loader.className = 'media-error'; loader.textContent = 'Image failed to load' }
+        img.src = url
+        wrapper.appendChild(img)
+        mediaDiv.appendChild(wrapper)
       }
     }
+    if (mediaDiv.children.length === 0) { mediaDiv.textContent = '(media data unavailable)' }
     content.appendChild(mediaDiv)
   }
 
@@ -1061,6 +1111,7 @@ function createPostElement(post) {
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation()
       if (confirm('Delete this post?')) {
+        markPostDeleted(post.id)
         const all = getPosts().filter(p => p.id !== post.id)
         savePosts(all)
         renderPosts()
@@ -1100,21 +1151,32 @@ function createPostElement(post) {
     postEl.appendChild(tagsDiv)
   }
 
-  if (post.media && post.media.length > 0) {
+  if ((post.images && post.images.length > 0) || (post.videos && post.videos.length > 0)) {
     const mediaDiv = document.createElement('div')
     mediaDiv.className = 'post-media'
-    for (const item of post.media) {
-      if (item.type === 'video') {
-        const video = document.createElement('video')
-        video.src = item.data
-        video.controls = true
-        mediaDiv.appendChild(video)
-      } else {
+    for (const url of (post.videos || [])) {
+      const video = document.createElement('video')
+      video.src = url
+      video.controls = true
+      mediaDiv.appendChild(video)
+    }
+    for (const url of (post.images || [])) {
+      if (url && url.startsWith('data:')) {
+        const wrapper = document.createElement('div')
+        wrapper.className = 'media-wrapper'
+        const loader = document.createElement('div')
+        loader.className = 'media-loading'
+        wrapper.appendChild(loader)
         const img = document.createElement('img')
-        img.src = item.data
-        mediaDiv.appendChild(img)
+        img.style.display = 'none'
+        img.onload = () => { try { wrapper.removeChild(loader) } catch(e) {}; img.style.display = '' }
+        img.onerror = () => { try { wrapper.removeChild(loader) } catch(e) {}; loader.className = 'media-error'; loader.textContent = 'Image failed to load' }
+        img.src = url
+        wrapper.appendChild(img)
+        mediaDiv.appendChild(wrapper)
       }
     }
+    if (mediaDiv.children.length === 0) { mediaDiv.textContent = '(media data unavailable)' }
     postEl.appendChild(mediaDiv)
   }
 
