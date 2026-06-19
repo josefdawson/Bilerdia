@@ -22,9 +22,9 @@ function getPosts() {
   return posts
 }
 
-function savePosts(posts) {
+async function savePosts(posts) {
   localStorage.setItem('posts', JSON.stringify(posts))
-  syncWritePosts(posts)
+  await syncWritePosts(posts)
 }
 
 function getPlaylists() {
@@ -420,6 +420,7 @@ document.getElementById('menu-close').addEventListener('click', closeMenu)
 
 // ─── Developer Console (F8 or ~) ─────────
 let devConsole = null
+let _forceDeleteMode = false
 
 async function wipeUser(user) {
   const allPosts = await supabaseGetPosts()
@@ -477,6 +478,14 @@ document.addEventListener('keydown', (e) => {
     renderPosts()
     alert('Sync complete!')
   })
+  const forceDelBtn = document.createElement('button')
+  forceDelBtn.textContent = '🔓 Force Delete: OFF'
+  forceDelBtn.onclick = () => {
+    _forceDeleteMode = !_forceDeleteMode
+    forceDelBtn.textContent = _forceDeleteMode ? '🔒 Force Delete: ON' : '🔓 Force Delete: OFF'
+    renderPosts()
+  }
+  body.appendChild(forceDelBtn)
   addBtn('Manage Other User Posts', async () => {
     const users = await supabaseGetAllUsers()
     const target = prompt('Enter username to manage posts:\n\nUsers:\n' + users.join('\n'))
@@ -765,6 +774,8 @@ function openDetail(postId) {
     }
     content.appendChild(tagsDiv)
   }
+
+  renderPoll(post, content)
 
   if ((post.images && post.images.length > 0) || (post.videos && post.videos.length > 0)) {
     const mediaDiv = document.createElement('div')
@@ -1082,6 +1093,57 @@ function renderPosts() {
   }
 }
 
+function renderPoll(post, container) {
+  if (!post.poll) return
+  const pollDiv = document.createElement('div')
+  pollDiv.className = 'poll-container'
+  const totalVotes = Object.values(post.poll.votes).reduce((s, v) => s + v.length, 0)
+  for (const opt of post.poll.options) {
+    const voters = post.poll.votes[opt] || []
+    const count = voters.length
+    const pct = totalVotes > 0 ? Math.round(count / totalVotes * 100) : 0
+    const voted = voters.includes(loggedInUser)
+    const row = document.createElement('div')
+    row.className = 'poll-row' + (voted ? ' poll-voted' : '')
+    const barOuter = document.createElement('div')
+    barOuter.className = 'poll-bar-outer'
+    const barInner = document.createElement('div')
+    barInner.className = 'poll-bar-inner'
+    barInner.style.width = pct + '%'
+    barOuter.appendChild(barInner)
+    const label = document.createElement('span')
+    label.className = 'poll-label'
+    label.textContent = opt
+    const info = document.createElement('span')
+    info.className = 'poll-info'
+    info.textContent = count + ' (' + pct + '%)'
+    row.appendChild(barOuter)
+    row.appendChild(label)
+    row.appendChild(info)
+    row.addEventListener('click', (e) => { e.stopPropagation(); votePoll(post.id, opt) })
+    pollDiv.appendChild(row)
+  }
+  container.appendChild(pollDiv)
+}
+
+function votePoll(postId, option) {
+  const all = getPosts()
+  const p = all.find(x => x.id === postId)
+  if (!p || !p.poll) return
+  const votes = p.poll.votes
+  for (const opt of p.poll.options) {
+    votes[opt] = (votes[opt] || []).filter(u => u !== loggedInUser)
+  }
+  if (!(votes[option] || []).includes(loggedInUser)) {
+    votes[option] = votes[option] || []
+    votes[option].push(loggedInUser)
+  }
+  savePosts(all)
+  renderPosts()
+  const detail = document.getElementById('detail-modal')
+  if (!detail.classList.contains('hidden')) openDetail(postId)
+}
+
 function createPostElement(post) {
   const postEl = document.createElement('div')
   postEl.className = 'post'
@@ -1104,17 +1166,19 @@ function createPostElement(post) {
   if (post.favorited) name.textContent += ' ⭐'
   header.appendChild(name)
 
-  if (post.accountName === loggedInUser) {
+  if (post.accountName === loggedInUser || _forceDeleteMode) {
     const delBtn = document.createElement('button')
     delBtn.className = 'post-delete'
     delBtn.textContent = 'Delete'
-    delBtn.addEventListener('click', (e) => {
+    delBtn.addEventListener('click', async (e) => {
       e.stopPropagation()
       if (confirm('Delete this post?')) {
         markPostDeleted(post.id)
+        await supabaseDeletePost(post.id)
         const all = getPosts().filter(p => p.id !== post.id)
-        savePosts(all)
+        localStorage.setItem('posts', JSON.stringify(all))
         renderPosts()
+        syncWritePosts(all)
       }
     })
     header.appendChild(delBtn)
@@ -1150,6 +1214,8 @@ function createPostElement(post) {
     }
     postEl.appendChild(tagsDiv)
   }
+
+  renderPoll(post, postEl)
 
   if ((post.images && post.images.length > 0) || (post.videos && post.videos.length > 0)) {
     const mediaDiv = document.createElement('div')

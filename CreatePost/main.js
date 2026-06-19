@@ -9,6 +9,33 @@ document.getElementById('cancel-btn').addEventListener('click', () => {
   window.location.href = '../Home/home.html?user=' + encodeURIComponent(loggedInUser)
 })
 
+// ── Poll toggle ──
+document.getElementById('poll-toggle').addEventListener('change', (e) => {
+  document.getElementById('poll-section').style.display = e.target.checked ? 'block' : 'none'
+  if (e.target.checked && document.getElementById('poll-options').children.length === 0) {
+    addPollOption(); addPollOption()
+  }
+})
+
+function addPollOption(value) {
+  const div = document.createElement('div')
+  div.style.cssText = 'display:flex;gap:6px;margin:4px 0'
+  const input = document.createElement('input')
+  input.className = 'poll-opt'
+  input.placeholder = 'Option ' + (document.getElementById('poll-options').children.length + 1)
+  if (value) input.value = value
+  div.appendChild(input)
+  const rm = document.createElement('button')
+  rm.type = 'button'
+  rm.textContent = '✕'
+  rm.style.cssText = 'background:#933;color:#fff;border:none;border-radius:4px;cursor:pointer'
+  rm.onclick = () => { if (document.getElementById('poll-options').children.length > 2) div.remove(); else alert('Need at least 2 options') }
+  div.appendChild(rm)
+  document.getElementById('poll-options').appendChild(div)
+}
+
+document.getElementById('add-poll-option').addEventListener('click', () => addPollOption())
+
 document.getElementById('media-input').addEventListener('change', (e) => {
   const preview = document.getElementById('preview')
   preview.innerHTML = ''
@@ -80,6 +107,15 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
   Promise.all(mediaPromises).then(async (media) => {
     const images = media.filter(m => m.type === 'image').map(m => m.data)
     const videos = media.filter(m => m.type === 'video').map(m => m.data)
+    let poll = null
+    if (document.getElementById('poll-toggle').checked) {
+      const inputs = document.querySelectorAll('.poll-opt')
+      const options = Array.from(inputs).map(i => i.value.trim()).filter(Boolean)
+      if (options.length >= 2) {
+        poll = { options, votes: {} }
+        for (const o of options) poll.votes[o] = []
+      }
+    }
     const post = {
       id: Date.now(),
       accountName: loggedInUser,
@@ -89,6 +125,7 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
       tags,
       images,
       videos,
+      poll,
       likes: [],
       dislikes: [],
       createdAt: new Date().toISOString()
