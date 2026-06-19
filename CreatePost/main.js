@@ -14,6 +14,29 @@ document.getElementById('post-genre').addEventListener('change', (e) => {
   document.getElementById('custom-genre-section').style.display = e.target.value === 'Others' ? 'block' : 'none'
 })
 
+// ── Cooldown countdown ──
+function updateCooldown() {
+  const el = document.getElementById('cooldown-timer')
+  const submitBtn = document.getElementById('submit-btn')
+  const lastTime = localStorage.getItem('lastPostTime_' + loggedInUser)
+  if (!lastTime) { el.style.display = 'none'; submitBtn.disabled = false; return }
+  const remaining = 120000 - (Date.now() - parseInt(lastTime, 10))
+  if (remaining <= 0) {
+    localStorage.removeItem('lastPostTime_' + loggedInUser)
+    el.style.display = 'none'
+    submitBtn.disabled = false
+    return
+  }
+  const secs = Math.ceil(remaining / 1000)
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  el.textContent = 'Cooldown: ' + m + ':' + (s < 10 ? '0' : '') + s
+  el.style.display = 'block'
+  submitBtn.disabled = true
+}
+updateCooldown()
+setInterval(updateCooldown, 1000)
+
 // ── Poll toggle ──
 document.getElementById('poll-toggle').addEventListener('change', (e) => {
   document.getElementById('poll-section').style.display = e.target.checked ? 'block' : 'none'
@@ -44,17 +67,23 @@ document.getElementById('add-poll-option').addEventListener('click', () => addPo
 document.getElementById('media-input').addEventListener('change', (e) => {
   const preview = document.getElementById('preview')
   preview.innerHTML = ''
+  const fileCount = e.target.files.length
+  const countLabel = document.createElement('div')
+  countLabel.style.cssText = 'color:#aaa;font-size:13px;margin-bottom:6px;'
+  countLabel.textContent = fileCount + ' file' + (fileCount !== 1 ? 's' : '') + ' selected'
+  preview.appendChild(countLabel)
   for (const file of e.target.files) {
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = 'display:inline-block;position:relative;margin:4px;'
+    const el = file.type.startsWith('video/') ? document.createElement('video') : document.createElement('img')
+    el.style.maxWidth = '150px'
+    el.style.maxHeight = '150px'
+    el.style.borderRadius = '6px'
+    el.controls = true
+    wrapper.appendChild(el)
+    preview.appendChild(wrapper)
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      const el = file.type.startsWith('video/') ? document.createElement('video') : document.createElement('img')
-      el.src = ev.target.result
-      el.style.maxWidth = '200px'
-      el.style.maxHeight = '200px'
-      el.style.margin = '5px'
-      el.controls = true
-      preview.appendChild(el)
-    }
+    reader.onload = (ev) => { el.src = ev.target.result }
     reader.readAsDataURL(file)
   }
 })

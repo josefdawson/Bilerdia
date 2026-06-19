@@ -111,6 +111,11 @@ body {
 #submit-btn:hover {
     background: rgb(0, 140, 220);
 }
+#submit-btn:disabled {
+    background: rgb(80, 80, 80);
+    color: #999;
+    cursor: not-allowed;
+}
 
 @media (max-width: 600px) {
     body { padding: 10px; }
