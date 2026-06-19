@@ -9,6 +9,7 @@
     right: 550px;
     top: 250px;
     padding: 20px;
+    padding-bottom: 60px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     text-align: center;
 }
@@ -16,7 +17,7 @@
 #register-log {
     cursor: pointer;
     position: absolute;
-    top: 650px;
+    top: 585px;
     transform: scale(2);
     background-color: green;
     color: white; 
@@ -128,9 +129,10 @@ body {
     #register-log {
         position: static;
         transform: none;
-        margin-top: 20px;
-        padding: 8px 24px;
-        font-size: 16px;
+        margin: 30px auto 40px;
+        padding: 10px 32px;
+        font-size: 18px;
+        display: block;
     }
 
     #register-log:hover { transform: none; }
