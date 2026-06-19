@@ -145,6 +145,18 @@ async function refreshPostsFromSupabase() {
       lp.favorited = found.favorited
     }
   }
+  // Merge: keep local-only posts not yet in Supabase
+  const mergedIds = new Set(localPosts.map(p => p.id))
+  for (const p of existing) {
+    if (!mergedIds.has(p.id) && !deletedIds.includes(p.id)) {
+      // Try to upload to Supabase
+      if (typeof p.id === 'number' && p.id > 1000000) {
+        const result = await supabaseCreatePost(postToSupabase(p))
+        if (result) p.id = result.id
+      }
+      localPosts.push(p)
+    }
+  }
   localStorage.setItem('posts', JSON.stringify(localPosts))
   } finally { _refreshBusy = false }
 }

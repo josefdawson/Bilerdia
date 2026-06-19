@@ -294,11 +294,31 @@ function showMembers() {
         pend.style.cssText = 'color:#aaa;font-size:12px;padding:4px 0;'
         btnRow.appendChild(pend)
       } else {
-        const ucLabel = document.createElement('span')
-        ucLabel.textContent = '🚧 Under Construction'
-        ucLabel.style.cssText = 'color:#777;font-size:12px;padding:6px 0;'
-        btnRow.appendChild(ucLabel)
+        const addBtn = document.createElement('button')
+        addBtn.textContent = 'Add Friend'
+        addBtn.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+        addBtn.addEventListener('click', async () => {
+          const theirReqs = getFriendRequests(u)
+          theirReqs.push(loggedInUser)
+          saveFriendRequests(u, theirReqs)
+          const mySent = getSentRequests(loggedInUser)
+          mySent.push(u)
+          saveSentRequests(loggedInUser, mySent)
+          await syncSendFriendRequest(loggedInUser, u)
+          closeMenu()
+        })
+        btnRow.appendChild(addBtn)
       }
+      const msgBtn = document.createElement('button')
+      msgBtn.textContent = 'Message'
+      msgBtn.style.cssText = 'background:rgb(0,120,200);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+      msgBtn.addEventListener('click', async () => {
+        clearChatPoll()
+        card.innerHTML = ''
+        const convId = await getOrCreateDM(u)
+        await openChat(convId)
+      })
+      btnRow.appendChild(msgBtn)
       el.appendChild(btnRow)
     }
     card.appendChild(el)
@@ -306,11 +326,6 @@ function showMembers() {
 }
 
 function showChats() {
-  const card = document.getElementById('card')
-  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
-  document.getElementById('back-btn').addEventListener('click', () => { clearChatPoll(); renderPosts() })
-  card.innerHTML += '<div style="text-align:center;padding:60px 20px;color:#888;"><div style="font-size:48px;margin-bottom:16px;">🚧</div><h2 style="color:#aaa;">Under Construction</h2><p style="color:#777;">Chats is not available yet.</p></div>'
-  return
   renderChatList()
 }
 
@@ -346,8 +361,6 @@ function showFriends() {
   const card = document.getElementById('card')
   card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
   document.getElementById('back-btn').addEventListener('click', goToPosts)
-  card.innerHTML += '<div style="text-align:center;padding:60px 20px;color:#888;"><div style="font-size:48px;margin-bottom:16px;">🚧</div><h2 style="color:#aaa;">Under Construction</h2><p style="color:#777;">Friends is not available yet.</p></div>'
-  return
   const friends = getFriends(loggedInUser)
   if (friends.length === 0) {
     card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">No friends yet. Add some from the Members list!</p>'
@@ -452,6 +465,30 @@ function sendNotif(title, body) {
   applyTheme(localStorage.getItem('theme') || 'dark')
   await initSync()
   await syncRefreshConversations()
+  await syncRefreshFriends(loggedInUser)
+  // Check for pending friend requests
+  const pendingReqs = getFriendRequests(loggedInUser)
+  for (const r of pendingReqs) {
+    if (confirm('Accept friend request from ' + r + '?')) {
+      const myFriends = getFriends(loggedInUser)
+      myFriends.push(r)
+      saveFriends(loggedInUser, myFriends)
+      const theirFriends = getFriends(r)
+      theirFriends.push(loggedInUser)
+      saveFriends(r, theirFriends)
+      const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
+      saveFriendRequests(loggedInUser, reqs)
+      const sent = getSentRequests(r).filter(x => x !== loggedInUser)
+      saveSentRequests(r, sent)
+      await syncAddFriendAsAccepted(loggedInUser, r)
+    } else {
+      const reqs = getFriendRequests(loggedInUser).filter(x => x !== r)
+      saveFriendRequests(loggedInUser, reqs)
+      const sent = getSentRequests(r).filter(x => x !== loggedInUser)
+      saveSentRequests(r, sent)
+      await syncDeleteFriendRequest(r, loggedInUser)
+    }
+  }
   const data = getUserData()
   if (data.profilePic) sidebarPfp.src = data.profilePic
   sidebarUsername.textContent = loggedInUser
@@ -471,6 +508,7 @@ function sendNotif(title, body) {
 
   setInterval(async () => {
     await refreshPostsFromSupabase()
+    await syncRefreshFriends(loggedInUser)
     if (currentPage === 'posts') renderPosts()
     if (currentDetailPostId) renderComments(currentDetailPostId)
 
