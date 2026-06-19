@@ -1052,3 +1052,176 @@ body {
 #dev-body button:hover {
     background: #1a5276;
 }
+
+/* ─── Light Mode ──────────────────────── */
+body.light-mode {
+    background-color: #f0f0f0;
+    color: #333;
+}
+body.light-mode #sidebar {
+    background: #ddd;
+    border-right: 1px solid #bbb;
+}
+body.light-mode #sidebar-header {
+    border-bottom: 1px solid #bbb;
+}
+body.light-mode #sidebar-header:hover {
+    background: #ccc;
+}
+body.light-mode #sidebar-username {
+    color: #333;
+}
+body.light-mode .sidebar-btn {
+    color: #555;
+}
+body.light-mode .sidebar-btn:hover {
+    background: #ccc;
+    color: #222;
+}
+body.light-mode #card {
+    background-color: #fff;
+}
+body.light-mode .post {
+    background: #f5f5f5;
+}
+body.light-mode .post-name {
+    color: #555;
+}
+body.light-mode .post-title {
+    color: #222;
+}
+body.light-mode .post-desc {
+    color: #555;
+}
+body.light-mode .post-time {
+    color: #999;
+}
+body.light-mode .post-actions {
+    border-top: 1px solid #ddd;
+}
+body.light-mode .action-btn {
+    background: #e8e8e8;
+    color: #555;
+}
+body.light-mode .action-btn:hover {
+    background: #ddd;
+}
+body.light-mode .action-btn.active {
+    background: #4a8bc2;
+    color: #fff;
+}
+body.light-mode .tag {
+    color: #2a7ab5;
+}
+body.light-mode .filter-btn {
+    background: #e0e0e0;
+    color: #555;
+    border: 1px solid #ccc;
+}
+body.light-mode .filter-btn:hover {
+    background: #d0d0d0;
+}
+body.light-mode .filter-btn.active {
+    background: #4a8bc2;
+    color: #fff;
+    border-color: #4a8bc2;
+}
+body.light-mode .member-card {
+    background: #f5f5f5;
+}
+body.light-mode #profile-menu {
+    background: #fff;
+}
+body.light-mode #menu-header {
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+}
+body.light-mode #menu-username {
+    color: #333;
+}
+body.light-mode .menu-btn {
+    color: #555;
+}
+body.light-mode .menu-btn:hover:not(:disabled) {
+    background: #e8e8e8;
+}
+body.light-mode #menu-overlay {
+    background: rgba(0,0,0,0.3);
+}
+body.light-mode #detail-modal {
+    background: #fff;
+}
+body.light-mode #detail-header {
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+}
+body.light-mode #detail-title {
+    color: #333;
+}
+body.light-mode #detail-back {
+    background: #e0e0e0;
+    color: #555;
+}
+body.light-mode #detail-back:hover {
+    background: #d0d0d0;
+}
+body.light-mode #detail-comments {
+    border-left: 1px solid #ddd;
+    background: #fafafa;
+}
+body.light-mode .comment {
+    background: #f0f0f0;
+}
+body.light-mode .comment-header strong {
+    color: #3a6a9a;
+}
+body.light-mode .comment-text {
+    color: #444;
+}
+body.light-mode .caction-btn {
+    background: #e8e8e8;
+    color: #666;
+}
+body.light-mode .caction-btn:hover {
+    background: #ddd;
+}
+body.light-mode .caction-btn.active {
+    background: #4a8bc2;
+    color: #fff;
+}
+body.light-mode .detail-desc {
+    color: #555;
+}
+body.light-mode .detail-owner-btn {
+    background: #e0e0e0;
+    color: #555;
+}
+body.light-mode .detail-owner-btn:hover {
+    background: #d0d0d0;
+}
+body.light-mode .media-loading {
+    background: #e8e8e8;
+    color: #999;
+}
+body.light-mode .media-error {
+    background: #fdd;
+    color: #c44;
+}
+body.light-mode .poll-row {
+    background: #eee;
+}
+body.light-mode .poll-row:hover {
+    background: #e5e5e5;
+}
+body.light-mode .poll-row.poll-voted {
+    background: #d4e8d4;
+}
+body.light-mode .poll-bar-inner {
+    background: rgba(0,0,0,0.08);
+}
+body.light-mode .poll-label {
+    color: #444;
+}
+body.light-mode .poll-info {
+    color: #999;
+}

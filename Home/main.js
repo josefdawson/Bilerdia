@@ -134,9 +134,44 @@ document.querySelectorAll('.sidebar-btn').forEach(btn => {
       case 'chats': showChats(); break
       case 'history': showHistory(); break
       case 'friends': showFriends(); break
+      case 'settings': showSettings(); break
     }
   })
 })
+
+function applyTheme(theme) {
+  document.body.classList.toggle('light-mode', theme === 'light')
+  localStorage.setItem('theme', theme)
+}
+
+function showSettings() {
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
+  document.getElementById('back-btn').addEventListener('click', goToPosts)
+  const currentTheme = localStorage.getItem('theme') || 'dark'
+  const notifEnabled = localStorage.getItem('notificationsEnabled') === 'true'
+  card.innerHTML += `
+    <div style="padding:20px;">
+      <h2 style="color:#ddd;margin-bottom:24px;">Settings</h2>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgb(70,70,70);border-radius:8px;cursor:pointer;">
+          <span style="color:#ddd;">Light Mode</span>
+          <input type="checkbox" id="theme-toggle" ${currentTheme === 'light' ? 'checked' : ''} style="width:20px;height:20px;cursor:pointer;">
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgb(70,70,70);border-radius:8px;cursor:pointer;">
+          <span style="color:#ddd;">Notifications</span>
+          <input type="checkbox" id="notif-toggle" ${notifEnabled ? 'checked' : ''} style="width:20px;height:20px;cursor:pointer;">
+        </label>
+      </div>
+    </div>`
+  document.getElementById('theme-toggle').addEventListener('change', function() {
+    applyTheme(this.checked ? 'light' : 'dark')
+  })
+  document.getElementById('notif-toggle').addEventListener('change', function() {
+    localStorage.setItem('notificationsEnabled', this.checked)
+    if (this.checked) Notification.requestPermission()
+  })
+}
 
 function showPlaylists() {
   const card = document.getElementById('card')
@@ -392,17 +427,51 @@ function showFriends() {
 overlay.addEventListener('click', closeMenu)
 document.getElementById('menu-close').addEventListener('click', closeMenu)
 
+function sendNotif(title, body) {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted')
+    new Notification(title, { body })
+}
+
 ;(async function() {
+  applyTheme(localStorage.getItem('theme') || 'dark')
   await initSync()
   await syncRefreshConversations()
   const data = getUserData()
   if (data.profilePic) sidebarPfp.src = data.profilePic
   sidebarUsername.textContent = loggedInUser
   renderPosts()
+
+  // One-time notification prompt
+  if (!localStorage.getItem('notificationsPrompted')) {
+    localStorage.setItem('notificationsPrompted', 'true')
+    if (confirm('Would you like to turn on notifications?')) {
+      const perm = typeof Notification !== 'undefined' ? await Notification.requestPermission() : 'denied'
+      localStorage.setItem('notificationsEnabled', perm === 'granted')
+    }
+  }
+
+  let knownPostIds = new Set(getPosts().map(p => p.id))
+  let knownUserCount = (JSON.parse(localStorage.getItem('registeredUsers') || '[]')).length
+
   setInterval(async () => {
     await refreshPostsFromSupabase()
     if (currentPage === 'posts') renderPosts()
     if (currentDetailPostId) renderComments(currentDetailPostId)
+
+    if (localStorage.getItem('notificationsEnabled') === 'true') {
+      const posts = getPosts()
+      const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+      for (const p of posts) {
+        if (!knownPostIds.has(p.id) && p.accountName !== loggedInUser)
+          sendNotif('New post by ' + p.accountName, p.title || '(no title)')
+      }
+      if (users.length > knownUserCount) {
+        const newUsers = users.slice(knownUserCount)
+        sendNotif('New member' + (newUsers.length > 1 ? 's' : '') + ' joined Bilerdia!', newUsers.join(', '))
+      }
+      knownPostIds = new Set(posts.map(p => p.id))
+      knownUserCount = users.length
+    }
   }, 10000)
 })()
 
