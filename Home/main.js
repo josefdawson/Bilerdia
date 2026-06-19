@@ -519,13 +519,12 @@ function buildMenuBody() {
     input.click()
   })
 
-  addMenuItem('Change Username', () => {
+  addMenuItem('Change Username', async () => {
     const newName = prompt('Enter new username:')
     if (!newName || !newName.trim()) return
     const name = newName.trim()
-    supabaseUserExists(name).then(exists => {
-      if (exists) { alert('Username already taken.'); return }
-    })
+    const exists = await supabaseUserExists(name)
+    if (exists) { alert('Username already taken.'); return }
     const oldPass = localStorage.getItem(loggedInUser)
     localStorage.setItem(name, oldPass)
     localStorage.removeItem(loggedInUser)
@@ -572,6 +571,19 @@ function buildMenuBody() {
     }
     localStorage.setItem('user_' + name, JSON.stringify(oldData))
     localStorage.setItem('loggedInUser', name)
+    // Sync username change to Supabase
+    ;(async () => {
+      await _sup('POST', 'users', { body: { username: name, password: oldPass } })
+      await supabaseDeleteUser(loggedInUser)
+      const allPosts = await supabaseGetPosts()
+      for (const p of allPosts) {
+        if (p.author === loggedInUser) await supabaseUpdatePost(p.id, { author: name, author_pic: (JSON.parse(localStorage.getItem('user_' + name) || '{}')).profilePic || 'Guest.png' })
+      }
+      for (const p of allPosts) {
+        const comments = await supabaseGetComments(p.id)
+        for (const c of comments) if (c.author === loggedInUser) await supabaseUpdateComment(c.id, { author: name })
+      }
+    })()
     window.location.reload()
   })
 

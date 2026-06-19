@@ -1,10 +1,14 @@
 // ─── Field mapping helpers ────────────────
 function postFromSupabase(p) {
+  const raw = p.tags || ''
+  const tags = typeof raw === 'string' && raw
+    ? raw.replace(/^\[|\]$/g, '').replace(/"/g, '').split(',').map(t => t.trim()).filter(Boolean)
+    : Array.isArray(raw) ? raw : []
   return {
     id: p.id,
     title: p.title,
     description: p.description,
-    tags: p.tags || '',
+    tags,
     images: (p.media || []).filter(m => m.type !== 'video').map(m => m.url || m),
     videos: (p.media || []).filter(m => m.type === 'video').map(m => m.url || m),
     accountName: p.author,
@@ -25,7 +29,7 @@ function postToSupabase(p) {
     id: p.id,
     title: p.title,
     description: p.description || '',
-    tags: p.tags || '',
+    tags: Array.isArray(p.tags) ? p.tags.join(',') : (p.tags || ''),
     media,
     author: p.accountName,
     author_pic: p.profilePic || 'Guest.png',
