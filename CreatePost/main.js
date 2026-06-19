@@ -9,6 +9,11 @@ document.getElementById('cancel-btn').addEventListener('click', () => {
   window.location.href = '../Home/home.html?user=' + encodeURIComponent(loggedInUser)
 })
 
+// ── Genre toggle ──
+document.getElementById('post-genre').addEventListener('change', (e) => {
+  document.getElementById('custom-genre-section').style.display = e.target.value === 'Others' ? 'block' : 'none'
+})
+
 // ── Poll toggle ──
 document.getElementById('poll-toggle').addEventListener('change', (e) => {
   document.getElementById('poll-section').style.display = e.target.checked ? 'block' : 'none'
@@ -116,6 +121,9 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
         for (const o of options) poll.votes[o] = []
       }
     }
+    const genreSelect = document.getElementById('post-genre')
+    const genre = genreSelect.value === 'Others' ? document.getElementById('custom-genre').value.trim() : genreSelect.value
+
     const post = {
       id: Date.now(),
       accountName: loggedInUser,
@@ -123,6 +131,7 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
       title,
       description,
       tags,
+      genre,
       images,
       videos,
       poll,

@@ -17,6 +17,19 @@
         <label>Tags (comma separated)</label>
         <input id="post-tags" placeholder="e.g. travel, food, tech">
 
+        <label>Genre</label>
+        <select id="post-genre">
+            <option value="">None</option>
+            <option value="News">News</option>
+            <option value="Silly">Silly</option>
+            <option value="Important">Important</option>
+            <option value="Music">Music</option>
+            <option value="Others">Others</option>
+        </select>
+        <div id="custom-genre-section" style="display:none;">
+            <input id="custom-genre" placeholder="Enter custom genre" style="width:100%;padding:8px;border-radius:6px;border:1px solid #555;background:rgb(50,50,50);color:#ddd;box-sizing:border-box;">
+        </div>
+
         <label>Images / Videos</label>
         <input type="file" id="media-input" accept="image/*,video/*" multiple>
 

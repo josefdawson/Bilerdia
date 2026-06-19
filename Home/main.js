@@ -18,6 +18,7 @@ function getPosts() {
     if (!p.dislikes) p.dislikes = []
     if (p.pinned === undefined) p.pinned = false
     if (p.favorited === undefined) p.favorited = false
+    if (p.genre === undefined) p.genre = ''
   }
   return posts
 }
@@ -133,6 +134,7 @@ document.querySelectorAll('.sidebar-btn').forEach(btn => {
       case 'members': showMembers(); break
       case 'chats': showChats(); break
       case 'history': showHistory(); break
+      case 'liked': showLikedPosts(); break
       case 'friends': showFriends(); break
       case 'settings': showSettings(); break
     }
@@ -310,6 +312,20 @@ function showChats() {
   card.innerHTML += '<div style="text-align:center;padding:60px 20px;color:#888;"><div style="font-size:48px;margin-bottom:16px;">🚧</div><h2 style="color:#aaa;">Under Construction</h2><p style="color:#777;">Chats is not available yet.</p></div>'
   return
   renderChatList()
+}
+
+function showLikedPosts() {
+  const posts = getPosts().filter(p => p.likes.includes(loggedInUser))
+  const card = document.getElementById('card')
+  card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back to all posts</button>'
+  document.getElementById('back-btn').addEventListener('click', goToPosts)
+  if (posts.length === 0) {
+    card.innerHTML += '<p style="text-align:center;padding:40px;color:#999;">You haven\'t liked any posts yet.</p>'
+    return
+  }
+  for (const post of posts) {
+    card.appendChild(createPostElement(post))
+  }
 }
 
 function showHistory() {
@@ -832,6 +848,13 @@ function openDetail(postId) {
     content.appendChild(tagsDiv)
   }
 
+  if (post.genre) {
+    const genreEl = document.createElement('span')
+    genreEl.className = 'genre-badge'
+    genreEl.textContent = post.genre
+    content.appendChild(genreEl)
+  }
+
   renderPoll(post, content)
 
   if ((post.images && post.images.length > 0) || (post.videos && post.videos.length > 0)) {
@@ -1277,6 +1300,13 @@ function createPostElement(post) {
       tagsDiv.appendChild(span)
     }
     postEl.appendChild(tagsDiv)
+  }
+
+  if (post.genre) {
+    const genreEl = document.createElement('span')
+    genreEl.className = 'genre-badge'
+    genreEl.textContent = post.genre
+    postEl.appendChild(genreEl)
   }
 
   renderPoll(post, postEl)
