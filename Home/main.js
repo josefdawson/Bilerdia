@@ -73,6 +73,22 @@ function saveSentRequests(user, list) {
   syncWriteSentRequests(user, list)
 }
 
+// ─── Time helper ────────────────────────
+function timeAgo(dateStr) {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return mins + 'm ago'
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return hrs + 'h ago'
+  const days = Math.floor(hrs / 24)
+  if (days < 30) return days + 'd ago'
+  const months = Math.floor(days / 30)
+  if (months < 12) return months + 'mo ago'
+  return Math.floor(months / 12) + 'y ago'
+}
+
 // Profile picture (loaded after initSync populates data)
 const profileImg = document.getElementById('profile-picture')
 
@@ -117,6 +133,78 @@ document.getElementById('menu-close').addEventListener('click', closeMenu)
     renderPosts()
   }, 10000)
 })()
+
+// ─── Developer Console (F8) ─────────────
+let devConsole = null
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F8') {
+    e.preventDefault()
+    if (devConsole) { devConsole.remove(); devConsole = null; return }
+    devConsole = document.createElement('div')
+    devConsole.id = 'dev-console'
+    devConsole.innerHTML = '<div id="dev-header">Developer Console <button id="dev-close">&times;</button></div><div id="dev-body"></div>'
+    document.body.appendChild(devConsole)
+    document.getElementById('dev-close').onclick = () => { devConsole.remove(); devConsole = null }
+    const body = document.getElementById('dev-body')
+    const addBtn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = fn; body.appendChild(b) }
+    addBtn('Delete My Account', async () => {
+      if (!confirm('Wipe your account forever? This removes EVERYTHING.')) return
+      if (!confirm('Really? All posts, likes, comments, chats, friends — gone.')) return
+      const user = loggedInUser
+      // Remove likes/dislikes from all posts + delete own posts
+      const allPosts = await supabaseGetPosts()
+      for (const p of allPosts) {
+        if ((p.likes || []).includes(user) || (p.dislikes || []).includes(user))
+          await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
+        if (p.author === user) await supabaseDeletePost(p.id)
+      }
+      // Delete all comments by user
+      for (const p of allPosts) {
+        const comments = await supabaseGetComments(p.id)
+        for (const c of comments)
+          if (c.author === user) await supabaseDeleteComment(c.id)
+      }
+      // Remove all friend relationships (both directions, any status)
+      const friends = await supabaseGetFriends(user)
+      for (const f of friends) await supabaseDeleteFriendRelationship(user, f)
+      const reqs = await supabaseGetFriendRequests(user)
+      for (const r of reqs) await supabaseDeleteFriendRelationship(r, user)
+      const sent = await supabaseGetSentRequests(user)
+      for (const s of sent) await supabaseDeleteFriendRelationship(user, s)
+      // Remove from all conversations
+      const convs = await supabaseGetUserConversations(user)
+      for (const c of convs) {
+        if (c.type === 'dm' || c.members.length <= 2) {
+          await _sup('DELETE', 'conversations', { eq: { id: c.id } })
+        } else {
+          c.members = c.members.filter(m => m !== user)
+          if (c.members.length > 0) await supabaseSaveConversation(c)
+          else await _sup('DELETE', 'conversations', { eq: { id: c.id } })
+        }
+      }
+      // Delete playlists
+      const playlists = await supabaseGetPlaylists(user)
+      for (const pl of playlists) await supabaseDeletePlaylist(pl.id)
+      // Delete the user
+      await supabaseDeleteUser(user)
+      localStorage.clear()
+      window.location.href = '../index.html'
+    })
+    addBtn('List All Users', async () => {
+      const users = await supabaseGetAllUsers()
+      alert('Users:\n' + users.join('\n'))
+    })
+    addBtn('Clear Local Data', () => {
+      if (confirm('Clear all local data and reload?')) { localStorage.clear(); location.reload() }
+    })
+    addBtn('Force Sync Now', async () => {
+      await initSync()
+      await syncRefreshConversations()
+      renderPosts()
+      alert('Sync complete!')
+    })
+  }
+})
 
 function buildMenuBody() {
   const body = document.getElementById('menu-body')
@@ -496,20 +584,30 @@ function buildMenuBody() {
     window.location.href = '../index.html'
   })
 
-  addMenuItem('Delete Account', () => {
-    if (!confirm('Are you sure you want to delete your account? This cannot be undone.')) return
-    if (!confirm('Really delete? All your posts and data will be lost.')) return
-    const posts = getPosts().filter(p => p.accountName !== loggedInUser)
-    savePosts(posts)
-    localStorage.removeItem('user_' + loggedInUser)
-    localStorage.removeItem('playlists_' + loggedInUser)
-    localStorage.removeItem('friends_' + loggedInUser)
-    localStorage.removeItem('fr_requests_' + loggedInUser)
-    localStorage.removeItem('fr_sent_' + loggedInUser)
-    localStorage.removeItem(loggedInUser)
-    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
-    localStorage.setItem('registeredUsers', JSON.stringify(users.filter(u => u !== loggedInUser)))
-    localStorage.removeItem('loggedInUser')
+  addMenuItem('Delete Account', async () => {
+    if (!confirm('Wipe your account forever? This removes EVERYTHING.')) return
+    if (!confirm('Really? All posts, likes, comments, chats, friends — gone.')) return
+    const user = loggedInUser
+    const allPosts = await supabaseGetPosts()
+    for (const p of allPosts) {
+      if ((p.likes||[]).includes(user) || (p.dislikes||[]).includes(user))
+        await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
+      if (p.author === user) await supabaseDeletePost(p.id)
+    }
+    for (const p of allPosts) {
+      const comments = await supabaseGetComments(p.id)
+      for (const c of comments) if (c.author === user) await supabaseDeleteComment(c.id)
+    }
+    for (const f of await supabaseGetFriends(user)) await supabaseDeleteFriendRelationship(user, f)
+    for (const r of await supabaseGetFriendRequests(user)) await supabaseDeleteFriendRelationship(r, user)
+    for (const s of await supabaseGetSentRequests(user)) await supabaseDeleteFriendRelationship(user, s)
+    for (const c of await supabaseGetUserConversations(user)) {
+      if (c.type === 'dm' || c.members.length <= 2) await _sup('DELETE', 'conversations', { eq: { id: c.id } })
+      else { c.members = c.members.filter(m => m !== user); if (c.members.length > 0) await supabaseSaveConversation(c); else await _sup('DELETE', 'conversations', { eq: { id: c.id } }) }
+    }
+    for (const pl of await supabaseGetPlaylists(user)) await supabaseDeletePlaylist(pl.id)
+    await supabaseDeleteUser(user)
+    localStorage.clear()
     window.location.href = '../index.html'
   })
 }
@@ -860,6 +958,11 @@ function createPostElement(post) {
     desc.textContent = post.description
     postEl.appendChild(desc)
   }
+
+  const timeEl = document.createElement('span')
+  timeEl.className = 'post-time'
+  timeEl.textContent = timeAgo(post.createdAt)
+  postEl.appendChild(timeEl)
 
   if (post.tags && post.tags.length > 0) {
     const tagsDiv = document.createElement('div')

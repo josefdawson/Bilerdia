@@ -795,3 +795,59 @@ body {
     .chat-messages { min-height: 200px; max-height: 300px; }
     .chat-bubble { max-width: 85%; }
 }
+
+.post-time {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    padding: 4px 16px 0;
+}
+
+#dev-console {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    background: #1a1a2e;
+    border: 1px solid #555;
+    border-radius: 8px;
+    z-index: 9999;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    overflow: hidden;
+}
+#dev-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #16213e;
+    color: #0f0;
+    font-weight: bold;
+    font-size: 14px;
+}
+#dev-close {
+    background: none;
+    border: none;
+    color: #f44;
+    font-size: 20px;
+    cursor: pointer;
+}
+#dev-body {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+#dev-body button {
+    padding: 6px 10px;
+    background: #0f3460;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+}
+#dev-body button:hover {
+    background: #1a5276;
+}

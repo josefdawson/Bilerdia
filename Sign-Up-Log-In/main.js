@@ -83,7 +83,7 @@ function handleGoogleCredential(response) {
       })
     }
     localStorage.setItem('loggedInUser', username)
-    window.location.href = 'Home/home.html?user=' + encodeURIComponent(username)
+    window.location.href = 'Bilerdia/Home/home.html?user=' + encodeURIComponent(username)
   })
 }
 
