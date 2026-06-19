@@ -764,99 +764,221 @@ function renderComments(postId) {
   const list = document.getElementById('comments-list')
   list.innerHTML = ''
   let comments = getComments(postId)
+  const posts = getPosts()
+  const post = posts.find(p => p.id === postId)
+  const postAuthor = post ? post.accountName : ''
 
+  // Separate pinned comment
+  const pinned = comments.find(c => c.pinned)
+  const rest = comments.filter(c => !c.pinned)
+
+  // Sort non-pinned comments
   if (currentCommentSort === 'latest') {
-    comments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    rest.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   } else if (currentCommentSort === 'oldest') {
-    comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    rest.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
   } else if (currentCommentSort === 'top') {
-    comments.sort((a, b) => (b.likes.length || 0) - (a.likes.length || 0))
+    rest.sort((a, b) => (b.likes.length || 0) - (a.likes.length || 0))
   }
 
-  if (comments.length === 0) {
+  // Sort pinned to top no matter what
+  const sorted = pinned ? [pinned, ...rest] : rest
+
+  if (sorted.length === 0) {
     list.innerHTML = '<p style="color:#999;padding:10px;">No comments yet.</p>'
     return
   }
 
-  for (const c of comments) {
-    const el = document.createElement('div')
-    el.className = 'comment'
+  // Top-level comments only (no parentId); replies are rendered inside their parent
+  const topLevel = sorted.filter(c => !c.parentId)
 
-    const header = document.createElement('div')
-    header.className = 'comment-header'
-    const name = document.createElement('strong')
-    name.textContent = c.author
-    header.appendChild(name)
-
-    if (c.author === loggedInUser || loggedInUser === document.querySelector('#detail-title')?.textContent === '') {
-      // Only the comment author can delete
+  for (const c of topLevel) {
+    list.appendChild(createCommentElement(c, postId, postAuthor))
+    // Render replies
+    const replies = sorted.filter(r => r.parentId === c.id)
+    for (const r of replies) {
+      const replyEl = createCommentElement(r, postId, postAuthor)
+      replyEl.style.marginLeft = '30px'
+      replyEl.style.borderLeft = '2px solid #555'
+      replyEl.style.paddingLeft = '10px'
+      replyEl.style.marginTop = '4px'
+      list.appendChild(replyEl)
     }
-    if (c.author === loggedInUser) {
-      const delC = document.createElement('button')
-      delC.className = 'comment-delete'
-      delC.textContent = '✕'
-      delC.addEventListener('click', () => {
-        if (confirm('Delete this comment?')) {
-          const all = getComments(postId).filter(x => x.id !== c.id)
-          saveComments(postId, all)
-          renderComments(postId)
-        }
-      })
-      header.appendChild(delC)
-    }
-
-    el.appendChild(header)
-
-    const text = document.createElement('p')
-    text.className = 'comment-text'
-    text.textContent = c.text
-    el.appendChild(text)
-
-    const actions = document.createElement('div')
-    actions.className = 'comment-actions'
-
-    const cliked = c.likes.includes(loggedInUser)
-    const cdisliked = c.dislikes.includes(loggedInUser)
-
-    const likeBtn = document.createElement('button')
-    likeBtn.className = 'caction-btn' + (cliked ? ' active' : '')
-    likeBtn.textContent = '👍 ' + c.likes.length
-    likeBtn.addEventListener('click', () => {
-      const all = getComments(postId)
-      const co = all.find(x => x.id === c.id)
-      if (!co) return
-      if (co.likes.includes(loggedInUser)) {
-        co.likes = co.likes.filter(u => u !== loggedInUser)
-      } else {
-        co.likes.push(loggedInUser)
-        co.dislikes = co.dislikes.filter(u => u !== loggedInUser)
-      }
-      saveComments(postId, all)
-      renderComments(postId)
-    })
-    actions.appendChild(likeBtn)
-
-    const dislikeBtn = document.createElement('button')
-    dislikeBtn.className = 'caction-btn' + (cdisliked ? ' active' : '')
-    dislikeBtn.textContent = '👎 ' + c.dislikes.length
-    dislikeBtn.addEventListener('click', () => {
-      const all = getComments(postId)
-      const co = all.find(x => x.id === c.id)
-      if (!co) return
-      if (co.dislikes.includes(loggedInUser)) {
-        co.dislikes = co.dislikes.filter(u => u !== loggedInUser)
-      } else {
-        co.dislikes.push(loggedInUser)
-        co.likes = co.likes.filter(u => u !== loggedInUser)
-      }
-      saveComments(postId, all)
-      renderComments(postId)
-    })
-    actions.appendChild(dislikeBtn)
-
-    el.appendChild(actions)
-    list.appendChild(el)
   }
+}
+
+function createCommentElement(c, postId, postAuthor) {
+  const el = document.createElement('div')
+  el.className = 'comment'
+
+  // Favorite star badge (top-right corner)
+  if (c.favorited) {
+    const star = document.createElement('span')
+    star.textContent = '⭐'
+    star.style.cssText = 'position:absolute;top:4px;right:8px;font-size:14px;cursor:default'
+    el.style.position = 'relative'
+    el.appendChild(star)
+  }
+
+  const header = document.createElement('div')
+  header.className = 'comment-header'
+  const name = document.createElement('strong')
+  name.textContent = c.author
+  header.appendChild(name)
+
+  // Pinned badge
+  if (c.pinned) {
+    const pinBadge = document.createElement('span')
+    pinBadge.textContent = '📌 Pinned by ' + c.pinnedBy
+    pinBadge.style.cssText = 'color:#ffa;font-size:11px;margin-left:8px'
+    header.appendChild(pinBadge)
+  }
+
+  if (c.author === loggedInUser) {
+    const delC = document.createElement('button')
+    delC.className = 'comment-delete'
+    delC.textContent = '✕'
+    delC.addEventListener('click', () => {
+      if (confirm('Delete this comment?')) {
+        const all = getComments(postId).filter(x => x.id !== c.id && x.parentId !== c.id)
+        saveComments(postId, all)
+        renderComments(postId)
+      }
+    })
+    header.appendChild(delC)
+  }
+
+  el.appendChild(header)
+
+  const text = document.createElement('p')
+  text.className = 'comment-text'
+  text.textContent = c.text
+  el.appendChild(text)
+
+  const actions = document.createElement('div')
+  actions.className = 'comment-actions'
+
+  const cliked = c.likes.includes(loggedInUser)
+  const cdisliked = c.dislikes.includes(loggedInUser)
+
+  const likeBtn = document.createElement('button')
+  likeBtn.className = 'caction-btn' + (cliked ? ' active' : '')
+  likeBtn.textContent = '👍 ' + c.likes.length
+  likeBtn.addEventListener('click', () => {
+    const all = getComments(postId)
+    const co = all.find(x => x.id === c.id)
+    if (!co) return
+    if (co.likes.includes(loggedInUser)) {
+      co.likes = co.likes.filter(u => u !== loggedInUser)
+    } else {
+      co.likes.push(loggedInUser)
+      co.dislikes = co.dislikes.filter(u => u !== loggedInUser)
+    }
+    saveComments(postId, all)
+    renderComments(postId)
+  })
+  actions.appendChild(likeBtn)
+
+  const dislikeBtn = document.createElement('button')
+  dislikeBtn.className = 'caction-btn' + (cdisliked ? ' active' : '')
+  dislikeBtn.textContent = '👎 ' + c.dislikes.length
+  dislikeBtn.addEventListener('click', () => {
+    const all = getComments(postId)
+    const co = all.find(x => x.id === c.id)
+    if (!co) return
+    if (co.dislikes.includes(loggedInUser)) {
+      co.dislikes = co.dislikes.filter(u => u !== loggedInUser)
+    } else {
+      co.dislikes.push(loggedInUser)
+      co.likes = co.likes.filter(u => u !== loggedInUser)
+    }
+    saveComments(postId, all)
+    renderComments(postId)
+  })
+  actions.appendChild(dislikeBtn)
+
+  // ─── Reply button (visible to everyone) ───
+  const replyBtn = document.createElement('button')
+  replyBtn.className = 'caction-btn'
+  replyBtn.textContent = '💬 Reply'
+  replyBtn.addEventListener('click', () => {
+    // Insert reply input after this comment if not already present
+    const existing = el.querySelector('.reply-input-row')
+    if (existing) { existing.remove(); return }
+    const row = document.createElement('div')
+    row.className = 'reply-input-row'
+    row.style.cssText = 'display:flex;gap:6px;margin-top:6px'
+    const inp = document.createElement('input')
+    inp.type = 'text'
+    inp.placeholder = 'Write a reply...'
+    inp.style.cssText = 'flex:1;padding:6px;border-radius:4px;border:1px solid #555;background:rgb(40,40,40);color:rgb(220,220,220);outline:none'
+    row.appendChild(inp)
+    const send = document.createElement('button')
+    send.textContent = 'Reply'
+    send.style.cssText = 'padding:4px 10px;background:rgb(0,120,200);color:white;border:none;border-radius:4px;cursor:pointer'
+    send.addEventListener('click', () => {
+      const txt = inp.value.trim()
+      if (!txt) return
+      const all = getComments(postId)
+      all.push({
+        id: Date.now() + Math.random(),
+        postId,
+        author: loggedInUser,
+        text: txt,
+        likes: [],
+        dislikes: [],
+        pinned: false,
+        pinnedBy: '',
+        favorited: false,
+        parentId: c.id,
+        createdAt: new Date().toISOString()
+      })
+      saveComments(postId, all)
+      renderComments(postId)
+    })
+    row.appendChild(send)
+    el.appendChild(row)
+    inp.focus()
+  })
+  actions.appendChild(replyBtn)
+
+  // ─── Pin / Favorite buttons (post creator only) ───
+  if (loggedInUser === postAuthor) {
+    const pinBtn = document.createElement('button')
+    pinBtn.className = 'caction-btn'
+    pinBtn.textContent = c.pinned ? '📌' : '📌'
+    pinBtn.addEventListener('click', () => {
+      const all = getComments(postId)
+      const co = all.find(x => x.id === c.id)
+      if (!co) return
+      // Unpin any previously pinned comment
+      if (!co.pinned) {
+        for (const x of all) if (x.pinned) { x.pinned = false; x.pinnedBy = '' }
+      }
+      co.pinned = !co.pinned
+      co.pinnedBy = co.pinned ? loggedInUser : ''
+      saveComments(postId, all)
+      renderComments(postId)
+    })
+    actions.appendChild(pinBtn)
+
+    const favBtn = document.createElement('button')
+    favBtn.className = 'caction-btn'
+    favBtn.textContent = c.favorited ? '⭐' : '⭐'
+    favBtn.style.opacity = c.favorited ? '1' : '0.5'
+    favBtn.addEventListener('click', () => {
+      const all = getComments(postId)
+      const co = all.find(x => x.id === c.id)
+      if (!co) return
+      co.favorited = !co.favorited
+      saveComments(postId, all)
+      renderComments(postId)
+    })
+    actions.appendChild(favBtn)
+  }
+
+  el.appendChild(actions)
+  return el
 }
 
 // Comment filters
@@ -1115,6 +1237,10 @@ document.getElementById('comment-submit').addEventListener('click', () => {
     text,
     likes: [],
     dislikes: [],
+    pinned: false,
+    pinnedBy: '',
+    favorited: false,
+    parentId: null,
     createdAt: new Date().toISOString()
   })
   saveComments(currentDetailPostId, comments)

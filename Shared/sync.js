@@ -42,11 +42,11 @@ function postToSupabase(p) {
 }
 
 function commentFromSupabase(c) {
-  return { id: c.id, postId: c.post_id, author: c.author, text: c.text, likes: c.likes || [], dislikes: c.dislikes || [], createdAt: c.created_at }
+  return { id: c.id, postId: c.post_id, author: c.author, text: c.text, likes: c.likes || [], dislikes: c.dislikes || [], pinned: !!c.pinned, pinnedBy: c.pinned_by || '', favorited: !!c.favorited, parentId: c.parent_id || null, createdAt: c.created_at }
 }
 
 function commentToSupabase(c) {
-  return { post_id: c.postId, author: c.author, text: c.text, likes: c.likes || [], dislikes: c.dislikes || [], created_at: c.createdAt }
+  return { post_id: c.postId, author: c.author, text: c.text, likes: c.likes || [], dislikes: c.dislikes || [], pinned: c.pinned || false, pinned_by: c.pinnedBy || '', favorited: c.favorited || false, parent_id: c.parentId || null, created_at: c.createdAt }
 }
 
 function userFromSupabase(u) {
