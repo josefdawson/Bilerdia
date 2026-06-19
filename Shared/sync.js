@@ -83,7 +83,7 @@ async function initSync() {
   }
 
   // Merge: Supabase posts win, but keep local-only posts
-  const supaLocal = supaPosts.map(postFromSupabase)
+  const supaLocal = supaPosts.map(postFromSupabase).filter(p => !deletedIds.includes(p.id))
   const mergedIds = new Set(supaLocal.map(p => p.id))
   for (const p of existingPosts) {
     if (!mergedIds.has(p.id)) supaLocal.push(p)
@@ -131,7 +131,8 @@ async function refreshPostsFromSupabase() {
     supabaseGetAllUsers()
   ])
   localStorage.setItem('registeredUsers', JSON.stringify(registered))
-  const localPosts = posts.map(postFromSupabase)
+  const deletedIds = JSON.parse(localStorage.getItem('deletedPostIds') || '[]')
+  const localPosts = posts.map(postFromSupabase).filter(p => !deletedIds.includes(p.id))
   const existing = JSON.parse(localStorage.getItem('posts') || '[]')
   for (const lp of localPosts) {
     const found = existing.find(e => e.id === lp.id)
