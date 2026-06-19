@@ -45,9 +45,9 @@ function getComments(postId) {
   return all
 }
 
-function saveComments(postId, comments) {
+async function saveComments(postId, comments) {
   localStorage.setItem('comments_' + postId, JSON.stringify(comments))
-  syncWriteComments(postId, comments)
+  await syncWriteComments(postId, comments)
 }
 
 // ─── Friend helpers ─────────────────────
@@ -414,7 +414,8 @@ document.getElementById('menu-close').addEventListener('click', closeMenu)
   renderPosts()
   setInterval(async () => {
     await refreshPostsFromSupabase()
-    renderPosts()
+    if (currentPage === 'posts') renderPosts()
+    if (currentDetailPostId) renderComments(currentDetailPostId)
   }, 10000)
 })()
 
@@ -821,9 +822,13 @@ detailOverlay.addEventListener('click', closeDetail)
 // ─── Comments ───────────────────────────
 let currentCommentSort = 'latest'
 
-function renderComments(postId) {
+async function renderComments(postId) {
   const list = document.getElementById('comments-list')
   list.innerHTML = ''
+  try {
+    const supaComments = await supabaseGetComments(postId)
+    if (supaComments) localStorage.setItem('comments_' + postId, JSON.stringify(supaComments.map(c => commentFromSupabase(c))))
+  } catch(e) { console.error('renderComments fetch', e) }
   let comments = getComments(postId)
   const posts = getPosts()
   const post = posts.find(p => p.id === postId)
@@ -899,8 +904,9 @@ function createCommentElement(c, postId, postAuthor) {
     const delC = document.createElement('button')
     delC.className = 'comment-delete'
     delC.textContent = '✕'
-    delC.addEventListener('click', () => {
+    delC.addEventListener('click', async () => {
       if (confirm('Delete this comment?')) {
+        await supabaseDeleteComment(c.id)
         const all = getComments(postId).filter(x => x.id !== c.id && x.parentId !== c.id)
         saveComments(postId, all)
         renderComments(postId)
@@ -1351,14 +1357,13 @@ openDetail = function(postId) {
   _origOpenDetail(postId)
 }
 
-document.getElementById('comment-submit').addEventListener('click', () => {
+document.getElementById('comment-submit').addEventListener('click', async () => {
   const input = document.getElementById('comment-input')
   const text = input.value.trim()
   if (!text || !currentDetailPostId) return
   input.value = ''
 
-  const comments = getComments(currentDetailPostId)
-  comments.push({
+  const comment = {
     id: Date.now(),
     postId: currentDetailPostId,
     author: loggedInUser,
@@ -1370,8 +1375,8 @@ document.getElementById('comment-submit').addEventListener('click', () => {
     favorited: false,
     parentId: null,
     createdAt: new Date().toISOString()
-  })
-  saveComments(currentDetailPostId, comments)
+  }
+  await syncAddComment(currentDetailPostId, comment)
   renderComments(currentDetailPostId)
 })
 

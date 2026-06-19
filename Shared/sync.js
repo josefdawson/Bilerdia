@@ -94,12 +94,7 @@ async function initSync() {
   localStorage.setItem('registeredUsers', JSON.stringify(registered))
 
   // Sync comments for Supabase posts
-  for (const p of supaPosts) {
-    if (!localStorage.getItem('comments_' + p.id)) {
-      const comments = await supabaseGetComments(p.id)
-      localStorage.setItem('comments_' + p.id, JSON.stringify(comments.map(commentFromSupabase)))
-    }
-  }
+  await syncPostComments(supaPosts)
 
   // Fetch logged-in user data first
   const myData = await supabaseGetUser(loggedInUser)
@@ -112,6 +107,15 @@ async function initSync() {
       const userData = await supabaseGetUser(u)
       if (userData) localStorage.setItem('user_' + u, JSON.stringify(userFromSupabase(userData)))
     }
+  }
+}
+
+async function syncPostComments(posts) {
+  for (const p of posts) {
+    try {
+      const comments = await supabaseGetComments(p.id)
+      if (comments) localStorage.setItem('comments_' + p.id, JSON.stringify(comments.map(commentFromSupabase)))
+    } catch(e) { console.error('syncPostComments', e) }
   }
 }
 
@@ -205,19 +209,19 @@ async function syncDeletePost(postId) {
 async function syncWriteComments(postId, comments) {
   localStorage.setItem('comments_' + postId, JSON.stringify(comments))
   const existing = await supabaseGetComments(postId)
-  for (const c of existing) {
-    if (!comments.find(lc => lc.id === c.id)) await supabaseDeleteComment(c.id)
-  }
+  const existingIds = new Set(existing.map(c => c.id))
   for (const c of comments) {
-    if (!c.id || c.id.toString().startsWith('local_')) {
+    if (existingIds.has(c.id)) {
+      await supabaseUpdateComment(c.id, commentToSupabase(c))
+    } else {
       const supabaseC = commentToSupabase(c)
       supabaseC.post_id = postId
       const result = await supabaseCreateComment(supabaseC)
       if (result) c.id = result.id
-    } else {
-      await supabaseUpdateComment(c.id, commentToSupabase(c))
     }
   }
+  const merged = await supabaseGetComments(postId)
+  localStorage.setItem('comments_' + postId, JSON.stringify(merged.map(commentFromSupabase)))
 }
 
 async function syncAddComment(postId, comment) {
