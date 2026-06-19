@@ -106,6 +106,18 @@ profileImg.addEventListener('click', openMenu)
 overlay.addEventListener('click', closeMenu)
 document.getElementById('menu-close').addEventListener('click', closeMenu)
 
+;(async function() {
+  await initSync()
+  await syncRefreshConversations()
+  const data = getUserData()
+  if (data.profilePic) profileImg.src = data.profilePic
+  renderPosts()
+  setInterval(async () => {
+    await refreshPostsFromSupabase()
+    renderPosts()
+  }, 10000)
+})()
+
 function buildMenuBody() {
   const body = document.getElementById('menu-body')
   body.innerHTML = ''
@@ -460,15 +472,7 @@ function buildMenuBody() {
           const p = getPlaylists()
           delete p[name]
           savePlaylists(p)
-;(async function() {
-  await initSync()
-  await syncRefreshConversations()
-  renderPosts()
-  setInterval(async () => {
-    await refreshPostsFromSupabase()
-    renderPosts()
-  }, 10000)
-})()
+          renderPosts()
         }
       })
       header.appendChild(delPl)
@@ -837,18 +841,7 @@ function createPostElement(post) {
       if (confirm('Delete this post?')) {
         const all = getPosts().filter(p => p.id !== post.id)
         savePosts(all)
-;(async function() {
-  await initSync()
-  await syncRefreshConversations()
-  // Load profile picture after data is synced
-  const data = getUserData()
-  if (data.profilePic) profileImg.src = data.profilePic
-  renderPosts()
-  setInterval(async () => {
-    await refreshPostsFromSupabase()
-    renderPosts()
-  }, 10000)
-})()
+        renderPosts()
       }
     })
     header.appendChild(delBtn)
