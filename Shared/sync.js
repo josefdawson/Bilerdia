@@ -188,7 +188,10 @@ async function syncWritePosts(posts) {
     }
     const localIds = new Set(posts.map(p => p.id))
     for (const eid of existingIds) {
-      if (!localIds.has(eid)) await supabaseDeletePost(eid)
+      if (!localIds.has(eid)) {
+        await supabaseDeletePost(eid)
+        markPostDeleted(eid)
+      }
     }
     localStorage.setItem('posts', JSON.stringify(posts))
   } finally {
@@ -215,6 +218,7 @@ async function syncUpdatePost(postId, updates) {
 }
 
 async function syncDeletePost(postId) {
+  markPostDeleted(postId)
   const posts = JSON.parse(localStorage.getItem('posts') || '[]').filter(p => p.id !== postId)
   localStorage.setItem('posts', JSON.stringify(posts))
   await supabaseDeletePost(postId)

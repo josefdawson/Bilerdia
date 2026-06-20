@@ -554,16 +554,17 @@ function sendNotif(title, body) {
   }, 10000)
 })()
 
-// ─── Developer Console (F8 or ~) ─────────
+// ─── Developer Console (secret code: DEVELOPER then C) ──
 let devConsole = null
 let _forceDeleteMode = false
+let _devCode = ''
 
 async function wipeUser(user) {
   const allPosts = await supabaseGetPosts()
   for (const p of allPosts) {
     if ((p.likes||[]).includes(user) || (p.dislikes||[]).includes(user))
       await supabaseUpdatePost(p.id, { likes: (p.likes||[]).filter(u=>u!==user), dislikes: (p.dislikes||[]).filter(u=>u!==user) })
-    if (p.author === user) { markPostDeleted(p.id); await supabaseDeletePost(p.id) }
+    if (p.author === user) { await syncDeletePost(p.id) }
   }
   for (const p of allPosts) {
     const comments = await supabaseGetComments(p.id)
@@ -581,8 +582,31 @@ async function wipeUser(user) {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'F8' && e.key !== '`') return
-  e.preventDefault()
+  if (e.key.length === 1) {
+    _devCode += e.key.toUpperCase()
+    if (_devCode === 'DEVELOPERC') {
+      _devCode = ''
+      toggleDevConsole()
+    } else if (!'DEVELOPER'.startsWith(_devCode) && _devCode !== 'DEVELOPERC') {
+      _devCode = ''
+    }
+  }
+})
+
+// Mobile: tap the logo 5 times to open dev console
+let _logoTapCount = 0
+;(function() {
+  const logo = document.querySelector('#top-bar h1 img') || document.querySelector('#top-bar h1')
+  if (logo) {
+    logo.addEventListener('click', () => {
+      _logoTapCount++
+      if (_logoTapCount >= 5) { _logoTapCount = 0; toggleDevConsole() }
+      setTimeout(() => { _logoTapCount = 0 }, 2000)
+    })
+  }
+})()
+
+function toggleDevConsole() {
   if (devConsole) { devConsole.remove(); devConsole = null; return }
   devConsole = document.createElement('div')
   devConsole.id = 'dev-console'
@@ -661,7 +685,7 @@ document.addEventListener('keydown', (e) => {
     }
     renderPosts()
   })
-})
+}
 
 function buildMenuBody() {
   const body = document.getElementById('menu-body')
@@ -966,8 +990,6 @@ let currentCommentSort = 'latest'
 
 async function renderComments(postId) {
   const list = document.getElementById('comments-list')
-  list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#888;"><div style="font-size:36px;margin-bottom:12px;">🚧</div><p style="color:#777;">Comments are under construction.</p></div>'
-  return
   list.innerHTML = ''
   try {
     const supaComments = await supabaseGetComments(postId)
@@ -977,6 +999,12 @@ async function renderComments(postId) {
   const posts = getPosts()
   const post = posts.find(p => p.id === postId)
   const postAuthor = post ? post.accountName : ''
+
+  // Search filter
+  const searchVal = document.getElementById('comment-search').value.trim().toLowerCase()
+  if (searchVal) {
+    comments = comments.filter(c => c.text.toLowerCase().includes(searchVal) || c.author.toLowerCase().includes(searchVal))
+  }
 
   // Separate pinned comment
   const pinned = comments.find(c => c.pinned)
@@ -995,7 +1023,7 @@ async function renderComments(postId) {
   const sorted = pinned ? [pinned, ...rest] : rest
 
   if (sorted.length === 0) {
-    list.innerHTML = '<p style="color:#999;padding:10px;">No comments yet.</p>'
+    list.innerHTML = '<p style="color:#999;padding:10px;">' + (searchVal ? 'No comments match your search.' : 'No comments yet.') + '</p>'
     return
   }
 
@@ -1127,11 +1155,10 @@ function createCommentElement(c, postId, postAuthor) {
     const send = document.createElement('button')
     send.textContent = 'Reply'
     send.style.cssText = 'padding:4px 10px;background:rgb(0,120,200);color:white;border:none;border-radius:4px;cursor:pointer'
-    send.addEventListener('click', () => {
+    send.addEventListener('click', async () => {
       const txt = inp.value.trim()
       if (!txt) return
-      const all = getComments(postId)
-      all.push({
+      await syncAddComment(postId, {
         id: Date.now() + Math.random(),
         postId,
         author: loggedInUser,
@@ -1144,7 +1171,6 @@ function createCommentElement(c, postId, postAuthor) {
         parentId: c.id,
         createdAt: new Date().toISOString()
       })
-      saveComments(postId, all)
       renderComments(postId)
     })
     row.appendChild(send)
@@ -1200,6 +1226,11 @@ document.querySelectorAll('.cfilter-btn').forEach(btn => {
     currentCommentSort = btn.dataset.csort
     if (currentDetailPostId) renderComments(currentDetailPostId)
   })
+})
+
+// Comment search
+document.getElementById('comment-search')?.addEventListener('input', () => {
+  if (currentDetailPostId) renderComments(currentDetailPostId)
 })
 
 // ─── Post rendering ─────────────────────
@@ -1323,12 +1354,8 @@ function createPostElement(post) {
     delBtn.addEventListener('click', async (e) => {
       e.stopPropagation()
       if (confirm('Delete this post?')) {
-        markPostDeleted(post.id)
-        await supabaseDeletePost(post.id)
-        const all = getPosts().filter(p => p.id !== post.id)
-        localStorage.setItem('posts', JSON.stringify(all))
+        await syncDeletePost(post.id)
         renderPosts()
-        syncWritePosts(all)
       }
     })
     header.appendChild(delBtn)

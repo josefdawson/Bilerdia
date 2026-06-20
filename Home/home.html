@@ -61,9 +61,15 @@
             <div id="detail-content"></div>
             <div id="detail-comments">
                 <h3>Comments</h3>
-                <div id="comment-input-row" style="display:none;">
+                <div id="comment-input-row">
                     <textarea id="comment-input" placeholder="Write a comment..." rows="2"></textarea>
                     <button id="comment-submit">Post</button>
+                </div>
+                <div id="comment-filters">
+                    <button class="cfilter-btn active" data-csort="latest">Latest</button>
+                    <button class="cfilter-btn" data-csort="oldest">Oldest</button>
+                    <button class="cfilter-btn" data-csort="top">Top</button>
+                    <input type="text" id="comment-search" placeholder="🔍 Search comments...">
                 </div>
                 <div id="comments-list"></div>
             </div>

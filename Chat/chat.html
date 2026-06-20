@@ -389,14 +389,54 @@
             color: #999;
             font-size: 18px;
         }
+        #sidebar-backdrop {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 49;
+        }
+        #sidebar-backdrop.show { display: block; }
+        #menu-toggle { display: none; }
+
+        @media (max-width: 600px) {
+            #top-bar { padding: 10px 12px; }
+            #top-bar h1 { font-size: 16px; }
+            #menu-toggle {
+                display: inline-block;
+                background: none;
+                border: none;
+                color: #ccc;
+                font-size: 22px;
+                cursor: pointer;
+                padding: 0 4px;
+            }
+            #menu-toggle:hover { color: white; }
+            #sidebar {
+                position: fixed;
+                left: 0; top: 0;
+                width: 280px;
+                height: 100%;
+                z-index: 50;
+                transform: translateX(-100%);
+                transition: transform 0.25s;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            }
+            #sidebar.open { transform: translateX(0); }
+            #main-area { width: 100%; }
+            .chat-bubble { max-width: 90%; }
+            #modal { width: 95%; max-width: 400px; }
+        }
     </style>
 </head>
 <body>
     <div id="top-bar">
+        <button id="menu-toggle">☰</button>
         <h1><img src="../Logo.png">Bilerdia Chat</h1>
         <a href="../Home/home.html?user=__USER__">← Back to Home</a>
     </div>
     <div id="chat-container">
+        <div id="sidebar-backdrop"></div>
         <div id="sidebar">
             <div id="sidebar-header">Conversations</div>
             <div id="conv-list"></div>
@@ -548,6 +588,17 @@
         let chatPollInterval = null
         let currentConv = null
 
+        // ─── Mobile sidebar toggle ────────────
+        const menuToggle = document.getElementById('menu-toggle')
+        const sidebar = document.getElementById('sidebar')
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop')
+        function toggleSidebar(open) {
+            sidebar.classList.toggle('open', open)
+            sidebarBackdrop.classList.toggle('show', open)
+        }
+        menuToggle.addEventListener('click', () => toggleSidebar(true))
+        sidebarBackdrop.addEventListener('click', () => toggleSidebar(false))
+
         // ─── DOM refs ─────────────────────────
         const convList = document.getElementById('conv-list')
         const chatHeader = document.getElementById('chat-header')
@@ -632,9 +683,23 @@
             renderConvList()
             renderMessages()
             chatInput.focus()
+            toggleSidebar(false)
             chatPollInterval = setInterval(async () => {
-                try { await renderMessages(true) } catch(e) { console.error('poll', e) }
-            }, 3000)
+                try {
+                    const remote = await supabaseGetMessages(convId)
+                    if (remote && remote.length > 0) {
+                        const formatted = remote.map(m => ({
+                            id: m.id,
+                            from: m.sender,
+                            text: m.text,
+                            read: m.read,
+                            createdAt: m.created_at
+                        }))
+                        localStorage.setItem('msgs_' + convId, JSON.stringify(formatted))
+                    }
+                    await renderMessages(true)
+                } catch(e) { console.error('poll', e) }
+            }, 5000)
         }
 
         async function renderMessages(isPolling) {
