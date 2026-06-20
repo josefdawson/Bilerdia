@@ -56,22 +56,25 @@ function getFriends(user) {
   return JSON.parse(localStorage.getItem('friends_' + user) || '[]')
 }
 function saveFriends(user, list) {
-  localStorage.setItem('friends_' + user, JSON.stringify(list))
-  syncWriteFriends(user, list)
+  const deduped = [...new Set(list)]
+  localStorage.setItem('friends_' + user, JSON.stringify(deduped))
+  syncWriteFriends(user, deduped)
 }
 function getFriendRequests(user) {
   return JSON.parse(localStorage.getItem('fr_requests_' + user) || '[]')
 }
 function saveFriendRequests(user, list) {
-  localStorage.setItem('fr_requests_' + user, JSON.stringify(list))
-  syncWriteFriendRequests(user, list)
+  const deduped = [...new Set(list)]
+  localStorage.setItem('fr_requests_' + user, JSON.stringify(deduped))
+  syncWriteFriendRequests(user, deduped)
 }
 function getSentRequests(user) {
   return JSON.parse(localStorage.getItem('fr_sent_' + user) || '[]')
 }
 function saveSentRequests(user, list) {
-  localStorage.setItem('fr_sent_' + user, JSON.stringify(list))
-  syncWriteSentRequests(user, list)
+  const deduped = [...new Set(list)]
+  localStorage.setItem('fr_sent_' + user, JSON.stringify(deduped))
+  syncWriteSentRequests(user, deduped)
 }
 
 // ─── Time helper ────────────────────────
@@ -118,9 +121,21 @@ let currentPage = 'posts'
 const sidebarPfp = document.getElementById('sidebar-pfp')
 const sidebarUsername = document.getElementById('sidebar-username')
 sidebarPfp.addEventListener('click', openMenu)
+let membersRefreshInterval = null
+
+function clearMembersRefresh() {
+  if (membersRefreshInterval) { clearInterval(membersRefreshInterval); membersRefreshInterval = null }
+}
+
+function setTitle(page, extra) {
+  let t = 'Bilerdia ❖ ' + page
+  if (extra) t += ' = ' + extra
+  document.title = t
+}
 
 function goToPosts() {
   currentPage = 'posts'
+  clearMembersRefresh()
   renderPosts()
 }
 
@@ -129,6 +144,7 @@ document.querySelectorAll('.sidebar-btn').forEach(btn => {
     const page = btn.dataset.page
     if (page === currentPage) { goToPosts(); return }
     currentPage = page
+    clearMembersRefresh()
     switch (page) {
       case 'playlists': showPlaylists(); break
       case 'members': showMembers(); break
@@ -146,6 +162,7 @@ function applyTheme(theme) {
 }
 
 function showSettings() {
+  setTitle('Settings')
   const card = document.getElementById('card')
   card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
   document.getElementById('back-btn').addEventListener('click', goToPosts)
@@ -175,6 +192,7 @@ function showSettings() {
 }
 
 function showPlaylists() {
+  setTitle('Playlists')
   const card = document.getElementById('card')
   card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
   document.getElementById('back-btn').addEventListener('click', goToPosts)
@@ -217,6 +235,8 @@ function showPlaylists() {
 }
 
 function showMembers() {
+  setTitle('Members')
+  clearMembersRefresh()
   const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
   if (users.length === 0) {
     alert('No other members found. Try syncing from Supabase first.')
@@ -297,14 +317,16 @@ function showMembers() {
         addBtn.textContent = 'Add Friend'
         addBtn.style.cssText = 'background:rgb(0,140,60);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
         addBtn.addEventListener('click', async () => {
+          addBtn.disabled = true
+          addBtn.textContent = '...'
           const theirReqs = getFriendRequests(u)
-          theirReqs.push(loggedInUser)
+          if (!theirReqs.includes(loggedInUser)) theirReqs.push(loggedInUser)
           saveFriendRequests(u, theirReqs)
           const mySent = getSentRequests(loggedInUser)
-          mySent.push(u)
+          if (!mySent.includes(u)) mySent.push(u)
           saveSentRequests(loggedInUser, mySent)
           await syncSendFriendRequest(loggedInUser, u)
-          closeMenu()
+          showMembers()
         })
         btnRow.appendChild(addBtn)
       }
@@ -312,9 +334,24 @@ function showMembers() {
     }
     card.appendChild(el)
   }
+  membersRefreshInterval = setInterval(async () => {
+    try {
+      const registered = await supabaseGetAllUsers()
+      if (registered) localStorage.setItem('registeredUsers', JSON.stringify(registered))
+      for (const u of registered) {
+        if (u === loggedInUser) continue
+        if (!localStorage.getItem('user_' + u)) {
+          const userData = await supabaseGetUser(u)
+          if (userData) localStorage.setItem('user_' + u, JSON.stringify({ email: userData.email || '', profilePic: userData.profile_pic || 'Guest.png' }))
+        }
+      }
+    } catch(e) { console.error('members refresh', e) }
+    showMembers()
+  }, 30000)
 }
 
 function showLikedPosts() {
+  setTitle('Liked Posts')
   const posts = getPosts().filter(p => p.likes.includes(loggedInUser))
   const card = document.getElementById('card')
   card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back to all posts</button>'
@@ -329,6 +366,7 @@ function showLikedPosts() {
 }
 
 function showHistory() {
+  setTitle('History')
   const posts = getPosts().filter(p => p.accountName === loggedInUser)
   if (posts.length === 0) {
     alert('You have no posts yet.')
@@ -343,6 +381,7 @@ function showHistory() {
 }
 
 function showFriends() {
+  setTitle('Friends')
   const card = document.getElementById('card')
   card.innerHTML = '<button id="back-btn" style="margin:10px;padding:8px 16px;cursor:pointer;">← Back</button>'
   document.getElementById('back-btn').addEventListener('click', goToPosts)
@@ -422,6 +461,18 @@ function showFriends() {
       name.textContent = f
       name.style.fontWeight = 'bold'
       el.appendChild(name)
+      const unfriend = document.createElement('button')
+      unfriend.textContent = 'Unfriend'
+      unfriend.style.cssText = 'background:rgb(180,50,50);color:white;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px;'
+      unfriend.addEventListener('click', async () => {
+        if (!confirm('Unfriend ' + f + '?')) return
+        const myFriends = getFriends(loggedInUser).filter(x => x !== f)
+        saveFriends(loggedInUser, myFriends)
+        const theirFriends = getFriends(f).filter(x => x !== loggedInUser)
+        saveFriends(f, theirFriends)
+        renderFriendList()
+      })
+      el.appendChild(unfriend)
       card.appendChild(el)
     }
   }
@@ -440,8 +491,8 @@ function sendNotif(title, body) {
   applyTheme(localStorage.getItem('theme') || 'dark')
   await initSync()
   await syncRefreshFriends(loggedInUser)
-  // Check for pending friend requests
-  const pendingReqs = getFriendRequests(loggedInUser)
+  // Check for pending friend requests (deduplicated)
+  const pendingReqs = [...new Set(getFriendRequests(loggedInUser))]
   for (const r of pendingReqs) {
     if (confirm('Accept friend request from ' + r + '?')) {
       const myFriends = getFriends(loggedInUser)
@@ -1155,9 +1206,11 @@ document.querySelectorAll('.cfilter-btn').forEach(btn => {
 function renderPosts() {
   const card = document.getElementById('card')
   card.innerHTML = ''
+  const rawQuery = searchInput.value.trim()
+  if (rawQuery) { setTitle('Search', rawQuery) } else { setTitle('Home') }
   let posts = getPosts()
 
-  const query = searchInput.value.trim().toLowerCase()
+  const query = rawQuery.toLowerCase()
   if (query) {
     posts = posts.filter(p =>
       p.title.toLowerCase().includes(query) ||
