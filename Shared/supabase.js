@@ -116,7 +116,7 @@ async function supabaseDeletePlaylist(id) {
 
 // ─── Friends ──────────────────────────────
 async function supabaseGetFriends(username) {
-  const data = await _sup('GET', 'friends', { select: 'user1,user2', eq: { status: 'accepted' }, or: 'user1.eq.' + username + ',user2.eq.' + username })
+  const data = await _sup('GET', 'friends', { select: 'user1,user2', eq: { status: 'accepted' }, or: '(user1.eq.' + username + ',user2.eq.' + username + ')' })
   if (!data) return []
   return data.map(r => r.user1 === username ? r.user2 : r.user1)
 }

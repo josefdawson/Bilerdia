@@ -4,9 +4,17 @@ const usernameInput = document.getElementById('username')
 const passwordInput = document.getElementById('password')
 const button = document.getElementById('register-log')
 
-if (localStorage.getItem('loggedInUser')) {
-  window.location.href = 'Home/home.html?user=' + encodeURIComponent(localStorage.getItem('loggedInUser'))
-}
+;(async function() {
+  const cached = localStorage.getItem('loggedInUser')
+  if (cached) {
+    const stillExists = await supabaseUserExists(cached)
+    if (stillExists) {
+      window.location.href = 'Home/home.html?user=' + encodeURIComponent(cached)
+    } else {
+      localStorage.removeItem('loggedInUser')
+    }
+  }
+})()
 
 document.getElementById('haveAccount').addEventListener('click', () => {
   if (isOnSignUp === true) {

@@ -37,7 +37,6 @@ function postToSupabase(p) {
     title: p.title,
     description: p.description || '',
     tags: Array.isArray(p.tags) ? p.tags.join(',') : (p.tags || ''),
-    genre: p.genre || '',
     media,
     author: p.accountName,
     author_pic: p.profilePic || 'Guest.png',
@@ -319,29 +318,35 @@ async function syncRefreshFriends(username) {
 
 // ─── Chat sync ────────────────────────────
 async function syncRefreshConversations() {
-  const convs = await supabaseGetUserConversations(loggedInUser)
-  const convIds = convs.map(c => c.id)
-  localStorage.setItem('convs_' + loggedInUser, JSON.stringify(convIds))
-  for (const c of convs) {
-    localStorage.setItem('conv_' + c.id, JSON.stringify(c))
-    const msgs = await supabaseGetMessages(c.id)
-    localStorage.setItem('msgs_' + c.id, JSON.stringify(msgs.map(m => ({
-      id: m.id,
-      from: m.sender,
-      text: m.text,
-      read: m.read,
-      createdAt: m.created_at
-    }))))
-    localStorage.setItem('chats_' + c.id, JSON.stringify(msgs.map(m => ({
-      id: m.id,
-      from: m.sender,
-      to: m.sender === loggedInUser ? c.members.find(x => x !== loggedInUser) : loggedInUser,
-      text: m.text,
-      read: m.read,
-      createdAt: m.created_at
-    }))))
+  let convs
+  try { convs = await supabaseGetUserConversations(loggedInUser) } catch(e) { console.error('syncRefreshConversations', e); convs = null }
+  if (convs && Array.isArray(convs) && convs.length > 0) {
+    const convIds = convs.map(c => c.id)
+    const localIds = JSON.parse(localStorage.getItem('convs_' + loggedInUser) || '[]')
+    const merged = [...new Set([...convIds, ...localIds])]
+    localStorage.setItem('convs_' + loggedInUser, JSON.stringify(merged))
+    for (const c of convs) {
+      localStorage.setItem('conv_' + c.id, JSON.stringify(c))
+      let msgs = []
+      try { msgs = await supabaseGetMessages(c.id) || [] } catch(e) { console.error('syncRefreshMessages', e) }
+      localStorage.setItem('msgs_' + c.id, JSON.stringify(msgs.map(m => ({
+        id: m.id,
+        from: m.sender,
+        text: m.text,
+        read: m.read,
+        createdAt: m.created_at
+      }))))
+      localStorage.setItem('chats_' + c.id, JSON.stringify(msgs.map(m => ({
+        id: m.id,
+        from: m.sender,
+        to: m.sender === loggedInUser ? c.members.find(x => x !== loggedInUser) : loggedInUser,
+        text: m.text,
+        read: m.read,
+        createdAt: m.created_at
+      }))))
+    }
   }
-  return convs
+  return convs || []
 }
 
 function syncGetMessages(convId) {
@@ -349,24 +354,24 @@ function syncGetMessages(convId) {
 }
 
 async function syncSendMessage(convId, text) {
-  const msg = {
-    conversation_id: convId,
-    sender: loggedInUser,
-    text,
-    read: false,
-    created_at: new Date().toISOString()
-  }
-  const result = await supabaseAddMessage(msg)
-  if (result) {
-    const msgs = syncGetMessages(convId)
-    msgs.push({ id: result.id, from: loggedInUser, text, read: false, createdAt: result.created_at })
-    localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
-    const conv = JSON.parse(localStorage.getItem('conv_' + convId) || '{}')
-    const otherUser = conv.members ? conv.members.find(m => m !== loggedInUser) : ''
-    const oldChats = JSON.parse(localStorage.getItem('chats_' + convId) || '[]')
-    oldChats.push({ id: result.id, from: loggedInUser, to: otherUser, text, read: false, createdAt: result.created_at })
-    localStorage.setItem('chats_' + convId, JSON.stringify(oldChats))
-  }
+  const tempId = Date.now() + '_' + Math.random().toString(36).slice(2, 8)
+  const createdAt = new Date().toISOString()
+  const msgs = syncGetMessages(convId)
+  msgs.push({ id: tempId, from: loggedInUser, text, read: false, createdAt })
+  localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
+  const conv = JSON.parse(localStorage.getItem('conv_' + convId) || '{}')
+  const otherUser = conv.members ? conv.members.find(m => m !== loggedInUser) : ''
+  const oldChats = JSON.parse(localStorage.getItem('chats_' + convId) || '[]')
+  oldChats.push({ id: tempId, from: loggedInUser, to: otherUser, text, read: false, createdAt })
+  localStorage.setItem('chats_' + convId, JSON.stringify(oldChats))
+  try {
+    const result = await supabaseAddMessage({ conversation_id: convId, sender: loggedInUser, text, read: false, created_at: createdAt })
+    if (result) {
+      const updated = syncGetMessages(convId)
+      const idx = updated.findIndex(m => m.id === tempId)
+      if (idx !== -1) { updated[idx].id = result.id; localStorage.setItem('msgs_' + convId, JSON.stringify(updated)) }
+    }
+  } catch(e) { console.error('syncSendMessage supabase', e) }
 }
 
 async function syncMarkMessagesRead(convId) {
@@ -416,7 +421,7 @@ function syncWriteSentRequests(user, list) {
 async function syncAddFriendAsAccepted(user1, user2) {
   const existing = await _sup('GET', 'friends', {
     select: '*',
-    or: 'and(user1.eq.' + user1 + ',user2.eq.' + user2 + '),and(user1.eq.' + user2 + ',user2.eq.' + user1 + ')',
+    or: '(and(user1.eq.' + user1 + ',user2.eq.' + user2 + '),and(user1.eq.' + user2 + ',user2.eq.' + user1 + '))',
     single: true
   })
   if (existing) {
@@ -431,7 +436,7 @@ async function syncDeleteFriendRequest(user1, user2) {
 }
 
 async function syncDeleteFriendRelationship(username, other) {
-  await _sup('DELETE', 'friends', { or: 'and(user1.eq.' + username + ',user2.eq.' + other + '),and(user1.eq.' + other + ',user2.eq.' + username + ')' })
+  await _sup('DELETE', 'friends', { or: '(and(user1.eq.' + username + ',user2.eq.' + other + '),and(user1.eq.' + other + ',user2.eq.' + username + '))' })
 }
 
 async function syncSendFriendRequest(user1, user2) {

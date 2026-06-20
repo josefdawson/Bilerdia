@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bilerdia ❖ Chat</title>
+    <link rel="icon" type="image/png" href="../Logo.png">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: "Arial", sans-serif;
+            background-color: rgb(47, 47, 47);
+            color: rgb(220, 220, 220);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #top-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            background: rgb(40, 40, 40);
+            border-bottom: 1px solid #555;
+            flex-shrink: 0;
+        }
+        #top-bar h1 {
+            margin: 0;
+            font-size: 20px;
+            flex: 1;
+        }
+        #top-bar h1 img {
+            height: 1em;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        #top-bar a {
+            color: rgb(100, 180, 255);
+            text-decoration: none;
+            font-size: 14px;
+        }
+        #top-bar a:hover { text-decoration: underline; }
+        #chat-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        #sidebar {
+            width: 260px;
+            background: rgb(40, 40, 40);
+            border-right: 1px solid #555;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        #sidebar-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #555;
+            font-weight: bold;
+            color: white;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        #conv-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+        .conv-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: 0.15s;
+            border-bottom: 1px solid #4a4a4a;
+        }
+        .conv-item:hover {
+            background: rgb(55, 55, 55);
+        }
+        .conv-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgb(70, 70, 70);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .conv-info {
+            flex: 1;
+            overflow: hidden;
+        }
+        .conv-name {
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .conv-preview {
+            font-size: 13px;
+            color: #999;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .conv-unread {
+            background: rgb(200, 50, 50);
+            color: white;
+            border-radius: 50%;
+            padding: 2px 8px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        #sidebar-actions {
+            padding: 8px;
+            border-top: 1px solid #555;
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        #sidebar-actions button {
+            flex: 1;
+            padding: 8px;
+            background: rgb(60, 60, 60);
+            color: rgb(220, 220, 220);
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #sidebar-actions button:hover { background: rgb(75, 75, 75); }
+        #main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #chat-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            border-bottom: 1px solid #555;
+            flex-shrink: 0;
+            background: rgb(45, 45, 45);
+        }
+        #chat-title {
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+            flex: 1;
+        }
+        #chat-settings-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        #chat-settings-btn:hover { color: white; }
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        #empty-chat {
+            color: #999;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .chat-bubble {
+            max-width: 70%;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+        .chat-bubble.own {
+            align-self: flex-end;
+            background: rgb(0, 100, 180);
+            color: rgb(220, 220, 220);
+        }
+        .chat-bubble.other {
+            align-self: flex-start;
+            background: rgb(60, 60, 60);
+            color: rgb(220, 220, 220);
+        }
+        .chat-bubble .sender-name {
+            font-size: 11px;
+            color: rgb(150, 200, 255);
+            margin-bottom: 2px;
+        }
+        .chat-bubble .time {
+            display: block;
+            font-size: 10px;
+            color: #999;
+            margin-top: 4px;
+        }
+        #chat-input-row {
+            display: flex;
+            gap: 8px;
+            padding: 10px 16px;
+            border-top: 1px solid #555;
+            flex-shrink: 0;
+            background: rgb(45, 45, 45);
+        }
+        #chat-input {
+            flex: 1;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: rgb(40, 40, 40);
+            color: rgb(220, 220, 220);
+            outline: none;
+        }
+        #chat-send {
+            background: rgb(0, 120, 200);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #chat-send:hover { background: rgb(0, 140, 220); }
+        #chat-input-row.hidden { display: none; }
+
+        /* ─── Modal ─────────────────────── */
+        .hidden { display: none !important; }
+        #modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+        }
+        #modal {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            max-height: 80vh;
+            background: rgb(50, 50, 50);
+            border-radius: 12px;
+            z-index: 101;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            background: rgb(60, 60, 60);
+            border-bottom: 1px solid #444;
+            flex-shrink: 0;
+        }
+        #modal-back {
+            background: rgb(70, 70, 70);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 6px 16px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #modal-back:hover { background: rgb(90, 90, 90); }
+        #modal-title {
+            flex: 1;
+            font-weight: bold;
+            font-size: 20px;
+            color: white;
+        }
+        #modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .modal-label {
+            color: white;
+            font-weight: bold;
+        }
+        .modal-input {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: rgb(40, 40, 40);
+            color: rgb(220, 220, 220);
+            outline: none;
+        }
+        .color-btn {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+        .color-btn.active { border-color: #fff; }
+        .style-btn {
+            padding: 6px 14px;
+            border-radius: 5px;
+            border: 2px solid #555;
+            cursor: pointer;
+            background: rgb(60, 60, 60);
+            color: rgb(220, 220, 220);
+            font-size: 13px;
+        }
+        .style-btn.active { border-color: #fff; }
+        .member-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+        .member-row img {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .member-row .name {
+            color: rgb(200, 200, 200);
+            font-size: 14px;
+            flex: 1;
+        }
+        .remove-btn {
+            background: rgb(180, 50, 50);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .add-members-btn {
+            background: rgb(0, 120, 200);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-size: 13px;
+            align-self: flex-start;
+        }
+
+        /* ─── Group creation ────────────── */
+        #group-create-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #group-create-area h2 {
+            padding: 0 16px;
+            color: white;
+        }
+        .group-member-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        .group-member-item:hover { background: rgb(55, 55, 55); }
+        .group-member-item img {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        /* ─── No conversation selected ──── */
+        #no-chat-selected {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div id="top-bar">
+        <h1><img src="../Logo.png">Bilerdia Chat</h1>
+        <a href="../Home/home.html?user=__USER__">← Back to Home</a>
+    </div>
+    <div id="chat-container">
+        <div id="sidebar">
+            <div id="sidebar-header">Conversations</div>
+            <div id="conv-list"></div>
+            <div id="sidebar-actions">
+                <button id="new-dm-btn">New DM</button>
+                <button id="new-group-btn">New Group</button>
+                <button id="refresh-btn">Refresh</button>
+            </div>
+        </div>
+        <div id="main-area">
+            <div id="chat-header" class="hidden">
+                <span id="chat-title"></span>
+                <button id="chat-settings-btn">&#9881;</button>
+            </div>
+            <div id="no-chat-selected">Select a conversation to start chatting</div>
+            <div id="chat-messages" class="hidden"></div>
+            <div id="chat-input-row" class="hidden">
+                <input id="chat-input" type="text" placeholder="Type a message...">
+                <button id="chat-send">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-overlay" class="hidden"></div>
+    <div id="modal" class="hidden">
+        <div id="modal-header">
+            <button id="modal-back">&#8592; Back</button>
+            <span id="modal-title">Settings</span>
+        </div>
+        <div id="modal-body"></div>
+    </div>
+
+    <script src="../Shared/supabase.js"></script>
+    <script src="../Shared/sync.js"></script>
+    <script>
+        // ─── Auth ─────────────────────────────
+        if (!loggedInUser) {
+            window.location.href = '../index.html'
+        }
+        // Fix the Back to Home link
+        document.querySelector('#top-bar a').href = '../Home/home.html?user=' + encodeURIComponent(loggedInUser)
+
+        // ─── Helper functions (from main.js) ──
+        function getUserData() {
+            return JSON.parse(localStorage.getItem('user_' + loggedInUser) || '{}')
+        }
+
+        function getConversationId(user1, user2) {
+            return [user1, user2].sort().join('_')
+        }
+
+        function getConversationsForUser(username) {
+            return JSON.parse(localStorage.getItem('convs_' + username) || '[]')
+        }
+
+        function addConvForUser(username, convId) {
+            const list = getConversationsForUser(username)
+            if (!list.includes(convId)) {
+                list.push(convId)
+                localStorage.setItem('convs_' + username, JSON.stringify(list))
+            }
+        }
+
+        function removeConvForUser(username, convId) {
+            const list = getConversationsForUser(username).filter(c => c !== convId)
+            localStorage.setItem('convs_' + username, JSON.stringify(list))
+        }
+
+        async function getConversation(convId) {
+            return await syncGetOrCreateConversation(convId, null)
+        }
+
+        async function saveConversation(convId, data) {
+            localStorage.setItem('conv_' + convId, JSON.stringify(data))
+            try { await supabaseSaveConversation(data) } catch(e) { console.error('saveConversation', e) }
+        }
+
+        function getMessages(convId) {
+            return syncGetMessages(convId)
+        }
+
+        function saveMessages(convId, msgs) {
+            localStorage.setItem('msgs_' + convId, JSON.stringify(msgs))
+            syncSaveMessages(convId, msgs)
+        }
+
+        function migrateChat(convId) {
+            syncMigrateChat(convId)
+        }
+
+        function getConvDisplayName(conv) {
+            if (conv.name) return conv.name
+            if (conv.type === 'dm') {
+                const other = conv.members.find(m => m !== loggedInUser)
+                return (conv.nicknames && conv.nicknames[other]) || other
+            }
+            return 'Group (' + conv.members.length + ')'
+        }
+
+        function getConvMemberName(conv, username) {
+            return (conv.nicknames && conv.nicknames[username]) || username
+        }
+
+        async function getOrCreateDM(otherUser) {
+            const convId = getConversationId(loggedInUser, otherUser)
+            let conv = await getConversation(convId)
+            if (!conv) {
+                conv = {
+                    id: convId,
+                    type: 'dm',
+                    name: null,
+                    nicknames: {},
+                    background: null,
+                    style: 'default',
+                    members: [loggedInUser, otherUser],
+                    createdAt: Date.now()
+                }
+                saveConversation(convId, conv)
+                addConvForUser(loggedInUser, convId)
+                addConvForUser(otherUser, convId)
+            }
+            return convId
+        }
+
+        async function getAllConversations() {
+            const convIds = getConversationsForUser(loggedInUser)
+            const convs = []
+            for (const id of convIds) {
+                const conv = await getConversation(id)
+                if (!conv) continue
+                migrateChat(id)
+                const msgs = getMessages(id)
+                convs.push({
+                    conv,
+                    lastMessage: msgs.length > 0 ? msgs[msgs.length - 1] : null,
+                    unread: msgs.filter(m => m.from !== loggedInUser && !m.read).length
+                })
+            }
+            convs.sort((a, b) => {
+                if (!a.lastMessage) return 1
+                if (!b.lastMessage) return -1
+                return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt)
+            })
+            return convs
+        }
+
+        // ─── State ────────────────────────────
+        let currentConvId = null
+        let chatPollInterval = null
+        let currentConv = null
+
+        // ─── DOM refs ─────────────────────────
+        const convList = document.getElementById('conv-list')
+        const chatHeader = document.getElementById('chat-header')
+        const chatTitle = document.getElementById('chat-title')
+        const chatSettingsBtn = document.getElementById('chat-settings-btn')
+        const chatMessages = document.getElementById('chat-messages')
+        const chatInputRow = document.getElementById('chat-input-row')
+        const chatInput = document.getElementById('chat-input')
+        const chatSend = document.getElementById('chat-send')
+        const noChat = document.getElementById('no-chat-selected')
+        const modalOverlay = document.getElementById('modal-overlay')
+        const modal = document.getElementById('modal')
+        const modalBack = document.getElementById('modal-back')
+        const modalTitle = document.getElementById('modal-title')
+        const modalBody = document.getElementById('modal-body')
+
+        // ─── Render conversation list ────────
+        async function renderConvList() {
+            const allConvs = await getAllConversations()
+            convList.innerHTML = ''
+            if (allConvs.length === 0) {
+                convList.innerHTML = '<div style="padding:16px;text-align:center;color:#999;">No conversations yet.<br>Start one with a friend!</div>'
+                return
+            }
+            for (const c of allConvs) {
+                const conv = c.conv
+                const el = document.createElement('div')
+                el.className = 'conv-item'
+                const isGroup = conv.type === 'group'
+                const displayName = getConvDisplayName(conv)
+                const avatar = document.createElement('div')
+                avatar.className = 'conv-avatar'
+                avatar.textContent = isGroup ? '👥' : (displayName ? displayName[0].toUpperCase() : '?')
+                el.appendChild(avatar)
+                const info = document.createElement('div')
+                info.className = 'conv-info'
+                const name = document.createElement('div')
+                name.className = 'conv-name'
+                name.textContent = displayName
+                info.appendChild(name)
+                if (c.lastMessage) {
+                    const prev = document.createElement('div')
+                    prev.className = 'conv-preview'
+                    const fromName = getConvMemberName(conv, c.lastMessage.from)
+                    prev.textContent = (c.lastMessage.from === loggedInUser ? 'You: ' : fromName + ': ') + c.lastMessage.text
+                    info.appendChild(prev)
+                }
+                el.appendChild(info)
+                if (c.unread > 0) {
+                    const badge = document.createElement('span')
+                    badge.className = 'conv-unread'
+                    badge.textContent = c.unread
+                    el.appendChild(badge)
+                }
+                el.addEventListener('click', () => openChat(conv.id))
+                if (currentConvId === conv.id) el.style.background = 'rgb(60, 60, 60)'
+                convList.appendChild(el)
+            }
+        }
+
+        function stopChatPoll() {
+            if (chatPollInterval) {
+                clearInterval(chatPollInterval)
+                chatPollInterval = null
+            }
+        }
+
+        // ─── Open Chat ───────────────────────
+        async function openChat(convId) {
+            const conv = await getConversation(convId)
+            if (!conv) { renderConvList(); return }
+            currentConvId = convId
+            currentConv = conv
+            migrateChat(convId)
+            syncMarkMessagesRead(convId)
+            stopChatPoll()
+            noChat.classList.add('hidden')
+            chatHeader.classList.remove('hidden')
+            chatMessages.classList.remove('hidden')
+            chatInputRow.classList.remove('hidden')
+            chatTitle.textContent = getConvDisplayName(conv)
+            renderConvList()
+            renderMessages()
+            chatInput.focus()
+            chatPollInterval = setInterval(async () => {
+                try { await renderMessages(true) } catch(e) { console.error('poll', e) }
+            }, 3000)
+        }
+
+        async function renderMessages(isPolling) {
+            const convId = currentConvId
+            if (!convId) return
+            const all = getMessages(convId)
+            syncMarkMessagesRead(convId)
+            if (!isPolling) {
+                chatMessages.innerHTML = ''
+                if (all.length === 0) {
+                    chatMessages.innerHTML = '<div id="empty-chat">No messages yet. Say hi!</div>'
+                    return
+                }
+                for (const m of all) appendMessage(m)
+                chatMessages.scrollTop = chatMessages.scrollHeight
+            } else {
+                const count = chatMessages.children.length
+                if (count <= 1 && chatMessages.querySelector('#empty-chat')) {
+                    chatMessages.innerHTML = ''
+                    for (const m of all) appendMessage(m)
+                    chatMessages.scrollTop = chatMessages.scrollHeight
+                } else if (all.length > count) {
+                    for (let i = count; i < all.length; i++) appendMessage(all[i])
+                    chatMessages.scrollTop = chatMessages.scrollHeight
+                }
+            }
+        }
+
+        function appendMessage(m) {
+            const el = document.createElement('div')
+            const isOwn = m.from === loggedInUser
+            const style = (currentConv && currentConv.style) || 'default'
+            el.className = 'chat-bubble style-' + style + ' ' + (isOwn ? 'own' : 'other')
+            if (currentConv && currentConv.type === 'group' && !isOwn) {
+                const nameEl = document.createElement('div')
+                nameEl.className = 'sender-name'
+                nameEl.textContent = getConvMemberName(currentConv, m.from)
+                el.appendChild(nameEl)
+            }
+            const text = document.createElement('span')
+            text.textContent = m.text
+            el.appendChild(text)
+            const time = document.createElement('span')
+            time.className = 'time'
+            time.textContent = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            el.appendChild(time)
+            chatMessages.appendChild(el)
+        }
+
+        async function sendMessage() {
+            const text = chatInput.value.trim()
+            if (!text || !currentConvId) return
+            chatInput.value = ''
+            await syncSendMessage(currentConvId, text)
+            await renderMessages()
+        }
+
+        chatSend.addEventListener('click', sendMessage)
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendMessage()
+        })
+
+        chatSettingsBtn.addEventListener('click', () => {
+            if (currentConvId) openChatSettings(currentConvId)
+        })
+
+        // ─── Chat Settings ───────────────────
+        async function openChatSettings(convId) {
+            const conv = await getConversation(convId)
+            if (!conv) return
+            modalOverlay.classList.remove('hidden')
+            modal.classList.remove('hidden')
+            modalTitle.textContent = 'Chat Settings'
+            modalBody.innerHTML = ''
+
+            function addLabel(text) {
+                const l = document.createElement('label')
+                l.className = 'modal-label'
+                l.textContent = text
+                modalBody.appendChild(l)
+            }
+
+            addLabel(conv.type === 'group' ? 'Group Name' : 'Chat Name')
+            const nameInput = document.createElement('input')
+            nameInput.type = 'text'
+            nameInput.className = 'modal-input'
+            nameInput.value = conv.name || ''
+            nameInput.placeholder = conv.type === 'group' ? 'Group name...' : 'Chat name (optional)...'
+            nameInput.addEventListener('input', () => {
+                conv.name = nameInput.value.trim() || null
+                saveConversation(convId, conv)
+            })
+            modalBody.appendChild(nameInput)
+
+            addLabel('Nicknames')
+            for (const member of conv.members) {
+                if (member === loggedInUser) continue
+                const row = document.createElement('div')
+                row.style.cssText = 'display:flex;gap:8px;align-items:center;'
+                const mName = document.createElement('span')
+                mName.style.cssText = 'color:#aaa;font-size:13px;width:80px;'
+                mName.textContent = member
+                row.appendChild(mName)
+                const nickInput = document.createElement('input')
+                nickInput.type = 'text'
+                nickInput.className = 'modal-input'
+                nickInput.value = (conv.nicknames && conv.nicknames[member]) || ''
+                nickInput.placeholder = 'Nickname...'
+                nickInput.addEventListener('input', () => {
+                    if (!conv.nicknames) conv.nicknames = {}
+                    if (nickInput.value.trim()) {
+                        conv.nicknames[member] = nickInput.value.trim()
+                    } else {
+                        delete conv.nicknames[member]
+                    }
+                    saveConversation(convId, conv)
+                })
+                row.appendChild(nickInput)
+                modalBody.appendChild(row)
+            }
+
+            addLabel('Background')
+            const bgRow = document.createElement('div')
+            bgRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;'
+            const colors = ['', '#2d2d2d', '#1a3a2a', '#2a1a3a', '#3a2a1a', '#1a2a3a', '#3a1a1a']
+            for (const c of colors) {
+                const btn = document.createElement('button')
+                const isActive = (!c && !conv.background) || (c === conv.background)
+                btn.className = 'color-btn' + (isActive ? ' active' : '')
+                if (c) {
+                    btn.style.background = c
+                } else {
+                    btn.style.background = 'rgb(60,60,60)'
+                    btn.textContent = '↺'
+                    btn.style.cssText = btn.style.cssText + ';color:#aaa;font-size:16px;display:flex;align-items:center;justify-content:center;'
+                }
+                btn.addEventListener('click', () => {
+                    conv.background = c || null
+                    saveConversation(convId, conv)
+                    if (c) { chatMessages.style.background = c; chatMessages.style.backgroundImage = '' }
+                    else { chatMessages.style.background = ''; chatMessages.style.backgroundImage = '' }
+                    openChatSettings(convId)
+                })
+                bgRow.appendChild(btn)
+            }
+            const bgUrlInput = document.createElement('input')
+            bgUrlInput.type = 'text'
+            bgUrlInput.className = 'modal-input'
+            bgUrlInput.value = (conv.background && !conv.background.startsWith('#') && !conv.background.startsWith('rgb')) ? conv.background : ''
+            bgUrlInput.placeholder = 'Or image URL...'
+            bgUrlInput.style.cssText = bgUrlInput.style.cssText + ';flex:1;'
+            bgUrlInput.addEventListener('input', () => {
+                conv.background = bgUrlInput.value.trim() || null
+                saveConversation(convId, conv)
+                if (conv.background && !conv.background.startsWith('#') && !conv.background.startsWith('rgb')) {
+                    chatMessages.style.backgroundImage = 'url(' + conv.background + ')'; chatMessages.style.backgroundSize = 'cover'
+                } else if (conv.background) {
+                    chatMessages.style.background = conv.background; chatMessages.style.backgroundImage = ''
+                } else {
+                    chatMessages.style.background = ''; chatMessages.style.backgroundImage = ''
+                }
+            })
+            bgRow.appendChild(bgUrlInput)
+            modalBody.appendChild(bgRow)
+
+            addLabel('Bubble Style')
+            const styleRow = document.createElement('div')
+            styleRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;'
+            const styles = ['default', 'green', 'purple', 'orange', 'pink', 'dark']
+            const styleNames = ['Default', 'Green', 'Purple', 'Orange', 'Pink', 'Dark']
+            for (let i = 0; i < styles.length; i++) {
+                const btn = document.createElement('button')
+                btn.textContent = styleNames[i]
+                const active = (conv.style === styles[i]) || (!conv.style && styles[i] === 'default')
+                btn.className = 'style-btn' + (active ? ' active' : '')
+                btn.addEventListener('click', () => {
+                    conv.style = styles[i]
+                    saveConversation(convId, conv)
+                    openChatSettings(convId)
+                })
+                styleRow.appendChild(btn)
+            }
+            modalBody.appendChild(styleRow)
+
+            if (conv.type === 'group') {
+                addLabel('Members (' + conv.members.length + ')')
+                for (const m of conv.members) {
+                    const row = document.createElement('div')
+                    row.className = 'member-row'
+                    const mData = JSON.parse(localStorage.getItem('user_' + m) || '{}')
+                    const img = document.createElement('img')
+                    img.src = mData.profilePic || 'Guest.png'
+                    row.appendChild(img)
+                    const name = document.createElement('span')
+                    name.className = 'name'
+                    name.textContent = m + (m === loggedInUser ? ' (you)' : '')
+                    row.appendChild(name)
+                    if (m !== loggedInUser) {
+                        const removeBtn = document.createElement('button')
+                        removeBtn.className = 'remove-btn'
+                        removeBtn.textContent = 'Remove'
+                        removeBtn.addEventListener('click', () => {
+                            if (confirm('Remove ' + m + ' from this group?')) {
+                                conv.members = conv.members.filter(x => x !== m)
+                                saveConversation(convId, conv)
+                                removeConvForUser(m, convId)
+                                openChatSettings(convId)
+                            }
+                        })
+                        row.appendChild(removeBtn)
+                    }
+                    modalBody.appendChild(row)
+                }
+                const addBtn = document.createElement('button')
+                addBtn.className = 'add-members-btn'
+                addBtn.textContent = '+ Add Members'
+                addBtn.addEventListener('click', () => {
+                    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+                    const available = users.filter(u => u !== loggedInUser && !conv.members.includes(u))
+                    if (available.length === 0) { alert('No other users to add.'); return }
+                    const choice = prompt('Enter username to add:\n' + available.join('\n'))
+                    if (choice && available.includes(choice.trim())) {
+                        conv.members.push(choice.trim())
+                        saveConversation(convId, conv)
+                        addConvForUser(choice.trim(), convId)
+                        openChatSettings(convId)
+                    }
+                })
+                modalBody.appendChild(addBtn)
+            }
+        }
+
+        modalBack.addEventListener('click', () => {
+            modalOverlay.classList.add('hidden')
+            modal.classList.add('hidden')
+        })
+        modalOverlay.addEventListener('click', () => {
+            modalOverlay.classList.add('hidden')
+            modal.classList.add('hidden')
+        })
+
+        // ─── New DM ──────────────────────────
+        document.getElementById('new-dm-btn').addEventListener('click', async () => {
+            const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+            const available = users.filter(u => u !== loggedInUser)
+            if (available.length === 0) { alert('No other users found.'); return }
+            const choice = prompt('Enter username to message:\n' + available.join('\n'))
+            if (!choice) return
+            const trimmed = choice.trim()
+            if (!available.includes(trimmed)) { alert('User not found.'); return }
+            const convId = await getOrCreateDM(trimmed)
+            await openChat(convId)
+        })
+
+        // ─── New Group ───────────────────────
+        document.getElementById('new-group-btn').addEventListener('click', () => {
+            const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
+            const available = users.filter(u => u !== loggedInUser)
+            if (available.length === 0) { alert('No other users to add.'); return }
+            stopChatPoll()
+            currentConvId = null
+            currentConv = null
+            noChat.classList.add('hidden')
+            chatHeader.classList.add('hidden')
+            chatMessages.classList.add('hidden')
+            chatInputRow.classList.add('hidden')
+            const area = document.getElementById('group-create-area')
+            if (area) { area.remove(); renderConvList(); return }
+            const container = document.createElement('div')
+            container.id = 'group-create-area'
+            const h2 = document.createElement('h2')
+            h2.textContent = 'Select members for group chat'
+            container.appendChild(h2)
+            const selected = []
+            for (const u of available) {
+                const el = document.createElement('div')
+                el.className = 'group-member-item'
+                const cb = document.createElement('input')
+                cb.type = 'checkbox'
+                cb.style.cssText = 'transform:scale(1.3);'
+                cb.addEventListener('change', () => {
+                    if (cb.checked) { selected.push(u) } else { const idx = selected.indexOf(u); if (idx !== -1) selected.splice(idx, 1) }
+                })
+                el.appendChild(cb)
+                const uData = JSON.parse(localStorage.getItem('user_' + u) || '{}')
+                const img = document.createElement('img')
+                img.src = uData.profilePic || 'Guest.png'
+                el.appendChild(img)
+                const nameSpan = document.createElement('span')
+                nameSpan.style.cssText = 'font-weight:bold;'
+                nameSpan.textContent = u
+                el.appendChild(nameSpan)
+                container.appendChild(el)
+            }
+            const createBtn = document.createElement('button')
+            createBtn.textContent = 'Create Group'
+            createBtn.style.cssText = 'display:block;margin:16px auto;padding:10px 24px;background:rgb(0,140,60);color:white;border:none;border-radius:8px;cursor:pointer;font-size:16px;'
+            createBtn.addEventListener('click', async () => {
+                if (selected.length < 1) { alert('Select at least one person.'); return }
+                const groupName = prompt('Group name:') || 'Group'
+                const convId = 'group_' + Date.now()
+                const allMembers = [loggedInUser, ...selected]
+                const conv = {
+                    id: convId, type: 'group', name: groupName,
+                    nicknames: {}, background: null, style: 'default',
+                    members: allMembers, createdAt: Date.now()
+                }
+                await syncSaveConversation(conv)
+                saveMessages(convId, [])
+                for (const m of allMembers) await syncAddConvForUser(m, convId)
+                container.remove()
+                await openChat(convId)
+            })
+            container.appendChild(createBtn)
+            document.getElementById('main-area').appendChild(container)
+        })
+
+        // ─── Refresh ─────────────────────────
+        document.getElementById('refresh-btn').addEventListener('click', async () => {
+            await syncRefreshConversations()
+            renderConvList()
+            if (currentConvId) {
+                await renderMessages(true)
+            }
+        })
+
+        // ─── Init ────────────────────────────
+        ;(async function() {
+            try {
+                await syncRefreshConversations()
+            } catch(e) {
+                console.error('init sync', e)
+            }
+            renderConvList()
+        })()
+    </script>
+</body>
+</html>
